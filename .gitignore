@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+**/node_modules/
+frontend/dist/
+.env
+.env.*
+!.env.example
+!.env.production.example
+.data/
+output/
+**/__pycache__/
+*.key
+*.pem
+*.pfx
+*.sqlite
+*.zip
+.DS_Store

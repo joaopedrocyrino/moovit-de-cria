@@ -1,0 +1,1 @@
+<Solution><Project Path="src/Cria.Domain/Cria.Domain.csproj" /><Project Path="src/Cria.Application/Cria.Application.csproj" /><Project Path="src/Cria.Infrastructure/Cria.Infrastructure.csproj" /><Project Path="src/Cria.Web/Cria.Web.csproj" /><Project Path="tests/Cria.Tests/Cria.Tests.csproj" /></Solution>

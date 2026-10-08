@@ -1,0 +1,15 @@
+.git
+**/bin
+**/obj
+**/node_modules
+frontend/dist
+.env
+.env.*
+.data
+output
+**/__pycache__
+*.key
+*.pem
+*.pfx
+*.sqlite
+*.zip

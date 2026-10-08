@@ -1,0 +1,483 @@
+{
+  "verifiedAt": "2026-10-08",
+  "sources": [
+    "https://www.metrorio.com.br/GuiaDoCliente/SuaViagem",
+    "https://www.metrorio.com.br/Scripts/TraceSuaRota/CarregaDDLEstacoes.js",
+    "https://www.metrorio.com.br/Scripts/TraceSuaRota/thera.pages.js",
+    "https://www.metrorio.com.br/como-pagar/meios-e-tarifas",
+    "https://www.openstreetmap.org/copyright"
+  ],
+  "fareCents": 790,
+  "estimatedHeadwaySeconds": 480,
+  "lines": [
+    {
+      "line": "1/4",
+      "stations": [
+        {
+          "id": "metro:w1w0",
+          "name": "Uruguai / Tijuca",
+          "point": {
+            "lat": -22.93146,
+            "lon": -43.23979
+          },
+          "secondsFromPrevious": 0
+        },
+        {
+          "id": "metro:w1w1",
+          "name": "Saens Peña / Tijuca",
+          "point": {
+            "lat": -22.92406,
+            "lon": -43.23248
+          },
+          "secondsFromPrevious": 95
+        },
+        {
+          "id": "metro:w1w2",
+          "name": "São Francisco Xavier / Tijuca",
+          "point": {
+            "lat": -22.92078,
+            "lon": -43.22381
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w1w3",
+          "name": "Afonso Pena / Tijuca",
+          "point": {
+            "lat": -22.9184517,
+            "lon": -43.2177515
+          },
+          "secondsFromPrevious": 85
+        },
+        {
+          "id": "metro:w1w4",
+          "name": "Estácio",
+          "point": {
+            "lat": -22.91391,
+            "lon": -43.2069
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w1w5",
+          "name": "Praça Onze",
+          "point": {
+            "lat": -22.91004,
+            "lon": -43.20026
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w1w6",
+          "name": "Central do Brasil / Centro",
+          "point": {
+            "lat": -22.90502,
+            "lon": -43.19094
+          },
+          "secondsFromPrevious": 160
+        },
+        {
+          "id": "metro:w1w7",
+          "name": "Saara / Presidente Vargas",
+          "point": {
+            "lat": -22.90307,
+            "lon": -43.18596
+          },
+          "secondsFromPrevious": 145
+        },
+        {
+          "id": "metro:w1w8",
+          "name": "Uruguaiana / Engenheiro Fernando Mac Dowell",
+          "point": {
+            "lat": -22.90294,
+            "lon": -43.18173
+          },
+          "secondsFromPrevious": 90
+        },
+        {
+          "id": "metro:w1w9",
+          "name": "Carioca / Centro",
+          "point": {
+            "lat": -22.90763,
+            "lon": -43.17797
+          },
+          "secondsFromPrevious": 155
+        },
+        {
+          "id": "metro:w1w10",
+          "name": "Cinelândia / Centro",
+          "point": {
+            "lat": -22.91081,
+            "lon": -43.17572
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w1w11",
+          "name": "Glória",
+          "point": {
+            "lat": -22.92051,
+            "lon": -43.17668
+          },
+          "secondsFromPrevious": 80
+        },
+        {
+          "id": "metro:w1w12",
+          "name": "Catete",
+          "point": {
+            "lat": -22.92583,
+            "lon": -43.17663
+          },
+          "secondsFromPrevious": 85
+        },
+        {
+          "id": "metro:w1w13",
+          "name": "Largo do Machado",
+          "point": {
+            "lat": -22.93072,
+            "lon": -43.17815
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w1w14",
+          "name": "Flamengo",
+          "point": {
+            "lat": -22.93851,
+            "lon": -43.1783
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w1w15",
+          "name": "Botafogo",
+          "point": {
+            "lat": -22.95016,
+            "lon": -43.18422
+          },
+          "secondsFromPrevious": 215
+        },
+        {
+          "id": "metro:w1w16",
+          "name": "Cardeal Arcoverde / Copacabana",
+          "point": {
+            "lat": -22.96462,
+            "lon": -43.18093
+          },
+          "secondsFromPrevious": 205
+        },
+        {
+          "id": "metro:w1w17",
+          "name": "Siqueira Campos / Copacabana",
+          "point": {
+            "lat": -22.96777,
+            "lon": -43.1871
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w1w18",
+          "name": "Cantagalo / Copacabana",
+          "point": {
+            "lat": -22.97655,
+            "lon": -43.1946
+          },
+          "secondsFromPrevious": 145
+        },
+        {
+          "id": "metro:w1w19",
+          "name": "General Osório / Ipanema",
+          "point": {
+            "lat": -22.98458,
+            "lon": -43.19803
+          },
+          "secondsFromPrevious": 300
+        },
+        {
+          "id": "metro:w6w1",
+          "name": "Nossa Senhora da Paz / Ipanema",
+          "point": {
+            "lat": -22.9839222,
+            "lon": -43.2066496
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w6w2",
+          "name": "Jardim de Alah / Leblon",
+          "point": {
+            "lat": -22.9833812,
+            "lon": -43.2146122
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w6w3",
+          "name": "Antero de Quental / Leblon",
+          "point": {
+            "lat": -22.9854375,
+            "lon": -43.2231977
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w6w4",
+          "name": "São Conrado",
+          "point": {
+            "lat": -22.9939306,
+            "lon": -43.2534998
+          },
+          "secondsFromPrevious": 205
+        },
+        {
+          "id": "metro:w6w5",
+          "name": "Jardim Oceânico / Barra da Tijuca",
+          "point": {
+            "lat": -23.007229,
+            "lon": -43.3102364
+          },
+          "secondsFromPrevious": 300
+        }
+      ]
+    },
+    {
+      "line": "2",
+      "stations": [
+        {
+          "id": "metro:w2w0",
+          "name": "Pavuna",
+          "point": {
+            "lat": -22.8166,
+            "lon": -43.37405
+          },
+          "secondsFromPrevious": 0
+        },
+        {
+          "id": "metro:w2w1",
+          "name": "Engenheiro Rubens Paiva",
+          "point": {
+            "lat": -22.81628,
+            "lon": -43.35848
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w2w2",
+          "name": "Acari / Fazenda Botafogo",
+          "point": {
+            "lat": -22.82497,
+            "lon": -43.34935
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w2w3",
+          "name": "Coelho Neto",
+          "point": {
+            "lat": -22.83197,
+            "lon": -43.3428
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w2w4",
+          "name": "Colégio",
+          "point": {
+            "lat": -22.84268,
+            "lon": -43.33434
+          },
+          "secondsFromPrevious": 145
+        },
+        {
+          "id": "metro:w2w5",
+          "name": "Irajá",
+          "point": {
+            "lat": -22.84799,
+            "lon": -43.32334
+          },
+          "secondsFromPrevious": 155
+        },
+        {
+          "id": "metro:w2w6",
+          "name": "Vicente de Carvalho",
+          "point": {
+            "lat": -22.85405,
+            "lon": -43.31314
+          },
+          "secondsFromPrevious": 155
+        },
+        {
+          "id": "metro:w2w7",
+          "name": "Thomaz Coelho",
+          "point": {
+            "lat": -22.8626005,
+            "lon": -43.3067943
+          },
+          "secondsFromPrevious": 145
+        },
+        {
+          "id": "metro:w2w8",
+          "name": "Engenho da Rainha",
+          "point": {
+            "lat": -22.87209,
+            "lon": -43.29144
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w2w9",
+          "name": "Inhaúma",
+          "point": {
+            "lat": -22.87457,
+            "lon": -43.28343
+          },
+          "secondsFromPrevious": 155
+        },
+        {
+          "id": "metro:w2w10",
+          "name": "Del Castilho",
+          "point": {
+            "lat": -22.8792,
+            "lon": -43.27205
+          },
+          "secondsFromPrevious": 160
+        },
+        {
+          "id": "metro:w2w11",
+          "name": "Maria da Graça",
+          "point": {
+            "lat": -22.88153,
+            "lon": -43.26021
+          },
+          "secondsFromPrevious": 155
+        },
+        {
+          "id": "metro:w2w12",
+          "name": "Triagem",
+          "point": {
+            "lat": -22.8968546,
+            "lon": -43.2444785
+          },
+          "secondsFromPrevious": 215
+        },
+        {
+          "id": "metro:w2w13",
+          "name": "Rei Pelé - Maracanã",
+          "point": {
+            "lat": -22.909716,
+            "lon": -43.23389
+          },
+          "secondsFromPrevious": 205
+        },
+        {
+          "id": "metro:w2w14",
+          "name": "São Cristovão",
+          "point": {
+            "lat": -22.9097,
+            "lon": -43.22105
+          },
+          "secondsFromPrevious": 155
+        },
+        {
+          "id": "metro:w2w15",
+          "name": "Cidade Nova",
+          "point": {
+            "lat": -22.90874,
+            "lon": -43.20638
+          },
+          "secondsFromPrevious": 210
+        },
+        {
+          "id": "metro:w1w6",
+          "name": "Central do Brasil / Centro",
+          "point": {
+            "lat": -22.90502,
+            "lon": -43.19094
+          },
+          "secondsFromPrevious": 220
+        },
+        {
+          "id": "metro:w1w7",
+          "name": "Saara / Presidente Vargas",
+          "point": {
+            "lat": -22.90307,
+            "lon": -43.18596
+          },
+          "secondsFromPrevious": 145
+        },
+        {
+          "id": "metro:w1w8",
+          "name": "Uruguaiana / Engenheiro Fernando Mac Dowell",
+          "point": {
+            "lat": -22.90294,
+            "lon": -43.18173
+          },
+          "secondsFromPrevious": 90
+        },
+        {
+          "id": "metro:w1w9",
+          "name": "Carioca / Centro",
+          "point": {
+            "lat": -22.90763,
+            "lon": -43.17797
+          },
+          "secondsFromPrevious": 155
+        },
+        {
+          "id": "metro:w1w10",
+          "name": "Cinelândia / Centro",
+          "point": {
+            "lat": -22.91081,
+            "lon": -43.17572
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w1w11",
+          "name": "Glória",
+          "point": {
+            "lat": -22.92051,
+            "lon": -43.17668
+          },
+          "secondsFromPrevious": 80
+        },
+        {
+          "id": "metro:w1w12",
+          "name": "Catete",
+          "point": {
+            "lat": -22.92583,
+            "lon": -43.17663
+          },
+          "secondsFromPrevious": 85
+        },
+        {
+          "id": "metro:w1w13",
+          "name": "Largo do Machado",
+          "point": {
+            "lat": -22.93072,
+            "lon": -43.17815
+          },
+          "secondsFromPrevious": 150
+        },
+        {
+          "id": "metro:w1w14",
+          "name": "Flamengo",
+          "point": {
+            "lat": -22.93851,
+            "lon": -43.1783
+          },
+          "secondsFromPrevious": 140
+        },
+        {
+          "id": "metro:w1w15",
+          "name": "Botafogo",
+          "point": {
+            "lat": -22.95016,
+            "lon": -43.18422
+          },
+          "secondsFromPrevious": 215
+        }
+      ]
+    }
+  ]
+}

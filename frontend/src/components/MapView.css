@@ -1,0 +1,126 @@
+.map-wrap {
+  position: absolute;
+  inset: 0;
+}
+.map-canvas {
+  height: 100%;
+  width: 100%;
+  background: #dce7df;
+}
+.map-controls {
+  position: absolute;
+  right: 16px;
+  top: 92px;
+  z-index: 500;
+  display: grid;
+  gap: 8px;
+}
+.map-controls button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border: 1px solid #e3e7df;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px #12332712;
+}
+.map-caption {
+  position: absolute;
+  left: 16px;
+  top: 88px;
+  z-index: 500;
+  background: #fffffff2;
+  padding: 10px 14px;
+  border-radius: 30px;
+  font-size: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  box-shadow: 0 2px 20px #18352b10;
+}
+.map-caption > span:last-child {
+  color: #717970;
+}
+.pulse {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f8268;
+}
+.vehicle-dot {
+  background: var(--vehicle-color, #176b4d);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  display: grid !important;
+  place-items: center;
+  box-shadow: 0 3px 10px #112a3c50;
+  font-size: 19px;
+}
+.vehicle-dot.chosen {
+  outline: 5px solid
+    color-mix(in srgb, var(--vehicle-color, #176b4d) 40%, transparent);
+}
+.leaflet-control-attribution {
+  font-size: 10px !important;
+  max-width: 100%;
+}
+.leaflet-bottom {
+  bottom: auto;
+  top: 132px;
+  left: 16px;
+  right: auto;
+}
+@media (min-width: 900px) {
+  .map-caption {
+    left: 456px;
+    top: 22px;
+  }
+  .map-controls {
+    top: 22px;
+    right: 24px;
+  }
+  .leaflet-bottom {
+    top: auto;
+    bottom: 0;
+    left: auto;
+    right: 0;
+  }
+}
+
+.map-line-legend {
+  position: absolute;
+  left: 16px;
+  top: 179px;
+  z-index: 500;
+  display: grid;
+  gap: 6px;
+  background: #fffffff2;
+  border-radius: 13px;
+  padding: 10px 12px;
+  max-width: calc(100% - 90px);
+  pointer-events: none;
+  box-shadow: 0 2px 18px #18352b10;
+}
+.map-line-legend > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.map-line-legend > div > span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.map-line-legend small {
+  font-size: 10px;
+  line-height: 1.4;
+}
+@media (min-width: 900px) {
+  .map-line-legend {
+    left: 456px;
+    top: 108px;
+    max-width: 330px;
+  }
+}

@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TestingPlatformDotnetTestSupport>true</TestingPlatformDotnetTestSupport></PropertyGroup><ItemGroup><Using Include="Xunit" /><PackageReference Include="xunit.v3.mtp-v2" Version="4.0.1" /><ProjectReference Include="../../src/Cria.Infrastructure/Cria.Infrastructure.csproj" /></ItemGroup></Project>

@@ -1,0 +1,19 @@
+name: moovit-de-cria
+services:
+  app:
+    image: ${APP_IMAGE:-moovit-de-cria:local}
+    build: .
+    ports: ["127.0.0.1:${APP_PORT:-5193}:8080"]
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Transit__Database: /data/transit.sqlite
+      Geocoding__AutocompleteUrl: ${AUTOCOMPLETE_URL:-https://photon.komoot.io}
+    volumes: ["./.data:/data:ro"]
+    restart: unless-stopped
+  import:
+    profiles: [tools]
+    image: python:3.14-slim
+    command: [python3, /scripts/import_gtfs.py, --output, /data/transit.sqlite]
+    environment:
+      GTFS_URL: ${GTFS_URL:-https://dados.mobilidade.rio/gtfs/schedule}
+    volumes: ["./scripts:/scripts:ro", "./.data:/data"]
