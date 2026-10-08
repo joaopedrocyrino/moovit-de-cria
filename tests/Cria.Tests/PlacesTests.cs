@@ -47,7 +47,7 @@ public class PlacesTests
         var handler = new FakeHandler(Cafe);
         using var cache = new MemoryCache(new MemoryCacheOptions());
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { ["Geocoding:AutocompleteUrl"] = "https://search.example.test" }).Build();
-        var places = new Places(new FakeFactory(handler), cache, config);
+        var places = new Places(new FakeFactory(handler), cache, config, LocalPlaces.FromJson("[]"));
         var result = await places.Search(" Chora cafe ", new(-22.95, -43.19), CancellationToken.None);
         Assert.Single(result);
         Assert.Single(await places.Search("Chora cafe", new(-22.95, -43.19), CancellationToken.None));
@@ -64,17 +64,62 @@ public class PlacesTests
     {
         var handler = new FakeHandler(Cafe);
         using var cache = new MemoryCache(new MemoryCacheOptions());
-        var places = new Places(new FakeFactory(handler), cache, new ConfigurationBuilder().Build());
+        var places = new Places(new FakeFactory(handler), cache, new ConfigurationBuilder().Build(), LocalPlaces.FromJson("[]"));
         Assert.Equal(400, (await Assert.ThrowsAsync<AppError>(() => places.Search("ab", null, CancellationToken.None))).Status);
         Assert.Equal(400, (await Assert.ThrowsAsync<AppError>(() => places.Search("Chora", new(0, 0), CancellationToken.None))).Status);
         Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task ExactCuratedAliasesAvoidExternalRequests()
+    {
+        var handler = new FakeHandler("", HttpStatusCode.ServiceUnavailable);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var places = new Places(new FakeFactory(handler), cache, new ConfigurationBuilder().Build(), LocalPlaces.LoadBundled());
+        foreach (var query in new[] { "casa do amor", "RFT", "canastra rose" })
+            Assert.Equal("catalog", Assert.Single(await places.Search(query, null, CancellationToken.None)).Source);
+        Assert.Equal(0, handler.Calls);
+    }
+
+    [Fact]
+    public async Task PrefixQueriesMergePhotonWithoutDuplicatingCuratedVenues()
+    {
+        var handler = new FakeHandler(Cafe);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var places = new Places(new FakeFactory(handler), cache, new ConfigurationBuilder().Build(), LocalPlaces.LoadBundled());
+        var result = Assert.Single(await places.Search("chor", null, CancellationToken.None));
+        Assert.Equal("catalog", result.Source);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Theory]
+    [InlineData("{}", HttpStatusCode.OK)]
+    [InlineData("not json", HttpStatusCode.OK)]
+    [InlineData("", HttpStatusCode.ServiceUnavailable)]
+    public async Task CuratedSuggestionsSurviveExternalOutagesAndMalformedResponses(string body, HttpStatusCode status)
+    {
+        var handler = new FakeHandler(body, status);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var places = new Places(new FakeFactory(handler), cache, new ConfigurationBuilder().Build(), LocalPlaces.LoadBundled());
+        Assert.Equal("catalog", Assert.Single(await places.Search("renovacao", null, CancellationToken.None)).Source);
+        Assert.Equal(1, handler.Calls);
+    }
+
+    [Fact]
+    public async Task UnknownPlacesStillReportProviderFailureAndCancellationIsNeverHidden()
+    {
+        var handler = new FakeHandler("", HttpStatusCode.ServiceUnavailable);
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var places = new Places(new FakeFactory(handler), cache, new ConfigurationBuilder().Build(), LocalPlaces.LoadBundled());
+        Assert.Equal(503, (await Assert.ThrowsAsync<AppError>(() => places.Search("unknown venue", null, CancellationToken.None))).Status);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => places.Search("rft", null, new CancellationToken(true)));
     }
 
     private sealed class FakeFactory(FakeHandler handler) : IHttpClientFactory
     {
         public HttpClient CreateClient(string name) => new(handler, disposeHandler: false);
     }
-    private sealed class FakeHandler(string body) : HttpMessageHandler
+    private sealed class FakeHandler(string body, HttpStatusCode status = HttpStatusCode.OK) : HttpMessageHandler
     {
         public int Calls { get; private set; }
         public Uri? Url { get; private set; }
@@ -82,7 +127,7 @@ public class PlacesTests
         {
             Calls++;
             Url = request.RequestUri;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(body) });
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body) });
         }
     }
 }

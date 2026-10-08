@@ -88,7 +88,7 @@ All fare amounts are **integer centavos** throughout API and calculations. Missi
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /api/config`                | Coverage, data readiness, tile configuration                                                                                             |
 | `GET /api/health/live` / `ready` | Process / imported data health                                                                                                           |
-| `POST /api/places/search`        | Photon autocomplete `{ "query": "...", "bias": { "lat": ..., "lon": ... } }`                                                             |
+| `POST /api/places/search`        | Local catalog + Photon autocomplete `{ "query": "...", "bias": { "lat": ..., "lon": ... } }`                                             |
 | `POST /api/places/reverse`       | Address for a selected `{ "lat": ..., "lon": ... }`                                                                                      |
 | `POST /api/plans`                | `{ "from": {...}, "to": {...}, "payment": "individual" or "jae", "maxTransfers": 2, "departure": "ISO-8601" or "arriveBy": "ISO-8601" }` |
 | `GET /api/vehicles?line=...`     | Shared public-line fleet; optional `routeId`/`direction` filters                                                                         |
@@ -104,11 +104,32 @@ GPS entries older than 180 seconds, future timestamps and invalid coordinates ar
 - The map loads **all bus/BRT lines in the selected itinerary together**, including later connections. Each line/direction has a distinct marker color matching its path and legend. Only fresh vehicles confirmed for the exact GTFS variant and travel direction are displayed; opposite, unknown and stale positions are excluded. Repeated legs reuse the fleet without duplicate markers. Metro paths appear in the legend with no train GPS.
 - Departure countdowns are explicitly timetable estimates, not vehicle ETAs. Phone GPS status and estimated schedules remain separate.
 
+## Custom place catalog
+
+Named venues and aliases live in `src/Cria.Infrastructure/Data/places.json`, including
+Casa do Amor, RFT, Canastra Rosé and Chora Café. Add any future venue using the guided
+terminal form; editing backend code is unnecessary:
+
+```bash
+npm run places:add
+npm run places:validate
+```
+
+Exact curated names work without Photon. Other queries merge local suggestions first
+with external results, deduplicate the same venue and retain local matches during
+provider outages. Search ignores accents/case and supports name, alias and neighborhood
+prefixes. Coordinates are validated, stored exactly and never guessed from an alias.
+
+Restart local development after catalog edits; commit/push to **main** publishes them
+in the rebuilt Docker image. [Catalog guide](docs/place-catalog.md) covers adding,
+editing/disabling places and contributing missing venues/names to OpenStreetMap so
+Photon can index them. No extra service or public write endpoint is required.
+
 ## Privacy, security and third-party services
 
 - Phone tracking stays in browser memory. Coordinates sent for planning/reverse geocoding are not stored as user history, and default server logging omits request bodies.
 - Public map tiles receive viewport requests; place/address autocomplete reaches Photon and reverse GPS lookup reaches Nominatim through the API. These providers have their own privacy policies. Install an appropriate provider/self-hosted service before scaling beyond moderate use.
-- Photon powers autocomplete with a 450 ms client debounce, minimum three characters, cancellable requests, cache and Rio bounding-box/location bias. OpenStreetMap business-name coverage includes the verified Chora Café in Botafogo. Public demo usage must stay moderate; `AUTOCOMPLETE_URL` can point to your own Photon instance or a compatible provider. Nominatim is used only for one-off reverse GPS lookup, never keystroke autocomplete. Both use an identifying User-Agent, server cache and shared throttle.
+- The curated local catalog complements Photon autocomplete with a 450 ms client debounce, minimum three characters, cancellable requests, cache and Rio bounding-box/location bias. OpenStreetMap business-name coverage includes the verified Chora Café in Botafogo. Public demo usage must stay moderate; `AUTOCOMPLETE_URL` can point to your own Photon instance or a compatible provider. Nominatim is used only for one-off reverse GPS lookup, never keystroke autocomplete. Both use an identifying User-Agent, server cache and shared throttle.
 - OpenStreetMap attribution stays visible. Tile URL is configurable through `Map__TilesUrl`; the service worker does not cache/prefetch external tiles or cache GPS/API responses.
 - Planning concurrency capped; global per-IP API rate limit; exact trusted proxy IP discovered at deployment. No uploads, public admin or write-to-database API.
 - Server `.env` belongs to the deploy user, mode 0600. SSH/GHCR credentials live in Actions secrets; deployment scripts never transfer the server file.
@@ -129,7 +150,8 @@ See [docs/deployment.md](docs/deployment.md) for the first push. Production GTFS
 
 ### Validation performed
 
-- 48 .NET tests (including partial/empty GPS refreshes, minute bootstrap/pagination, missing provider identifiers, direction/variant changes, outages/expiry, scheduled departure, arrive-by, calendar/overnight rules, Photon parsing, metro routing/fares and shared GPS provider caching), 14 frontend logic tests (phone GPS, Rio time, compact status and all-line vehicle filtering) and 4 importer tests passed.
+- 68 .NET tests (including partial/empty GPS refreshes, minute bootstrap/pagination, missing provider identifiers, direction/variant changes, outages/expiry, scheduled departure, arrive-by, calendar/overnight rules, Photon parsing, metro routing/fares and shared GPS provider caching), 14 frontend logic tests (phone GPS, Rio time, compact status and all-line vehicle filtering) and 4 importer tests passed.
+- The custom catalog passed 25 place-search tests and five CLI tests. Direct HTTP checks verified all four pins and local suggestions during a Photon outage; the React production build passed.
 - Chromium and WebKit passed search → route selection → boarding → transfer checks against the compiled monolith at mobile and desktop widths. Inline autocomplete, keyboard selection, invalidating edited coordinates and stale-response handling also passed in both engines.
 - The real official feed imported 7,694 stops and 15,107 timetable patterns into a 108 MiB snapshot, including inside the final Linux image with a 384 MiB importer limit.
 - The read-only, non-root app returned eight real route alternatives under its 512 MiB limit; measured container usage after that request was approximately 316 MiB. Your 1 GiB shared droplet still needs enough free memory alongside its existing apps; these are container limits, not a guarantee that all services fit together.

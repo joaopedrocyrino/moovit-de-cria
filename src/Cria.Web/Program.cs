@@ -10,6 +10,7 @@ builder.Services.AddMemoryCache(o => o.ExpirationScanFrequency = TimeSpan.FromMi
 builder.Services.AddHttpClient("external", c => { c.Timeout = TimeSpan.FromSeconds(15); c.MaxResponseContentBufferSize = 16 * 1024 * 1024; }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All });
 builder.Services.AddSingleton<ITransitStore, TransitStore>();
 builder.Services.AddSingleton<IVehicles, VehicleFeed>();
+builder.Services.AddSingleton(_ => LocalPlaces.LoadBundled());
 builder.Services.AddSingleton<IPlaces, Places>();
 builder.Services.AddSingleton<Planner>();
 builder.Services.Configure<ForwardedHeadersOptions>(o => { o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto; if (IPAddress.TryParse(builder.Configuration["Security:TrustedProxyIp"], out var p)) o.KnownProxies.Add(p); });

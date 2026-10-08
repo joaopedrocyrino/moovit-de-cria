@@ -45,7 +45,7 @@ public static class PhotonPlaces
     }
 }
 
-public sealed class Places(IHttpClientFactory clients, IMemoryCache cache, IConfiguration config) : IPlaces
+public sealed class Places(IHttpClientFactory clients, IMemoryCache cache, IConfiguration config, LocalPlaces catalog) : IPlaces
 {
     private readonly SemaphoreSlim gate = new(1);
     private DateTimeOffset last;
@@ -94,7 +94,7 @@ public sealed class Places(IHttpClientFactory clients, IMemoryCache cache, IConf
             if (city is not null && !city.Equals("Rio de Janeiro", StringComparison.OrdinalIgnoreCase))
                 return null;
         }
-        return element.TryGetProperty("display_name", out var label) ? new(label.ToString(), point) : null;
+        return element.TryGetProperty("display_name", out var label) ? new(label.ToString(), point, "nominatim") : null;
     }
 
     public async Task<Place[]> Search(string query, Point? bias, CancellationToken ct)
@@ -103,16 +103,26 @@ public sealed class Places(IHttpClientFactory clients, IMemoryCache cache, IConf
             throw new AppError(400, "Digite de 3 a 180 caracteres do lugar ou endereço.");
         if (bias is not null && !bias.InRioBounds)
             throw new AppError(400, "Localização de busca fora da região atendida.");
+        ct.ThrowIfCancellationRequested();
+        var local = catalog.Search(query, bias);
+        // Exact curated names need no external lookup and work during provider outages.
+        if (catalog.HasExactName(query)) return local;
         var focus = bias ?? new Point(-22.924, -43.228);
         var path = $"/api/?q={Uri.EscapeDataString(query.Trim().ToLowerInvariant())}&limit=6&bbox=-43.85,-23.12,-43.08,-22.72&countrycode=BR&lat={focus.Lat.ToString("F3", CultureInfo.InvariantCulture)}&lon={focus.Lon.ToString("F3", CultureInfo.InvariantCulture)}";
         var endpoint = config["Geocoding:AutocompleteUrl"] ?? "https://photon.komoot.io";
         try
         {
             using var document = JsonDocument.Parse(await Fetch(endpoint, path, ct));
-            return PhotonPlaces.Parse(document.RootElement);
+            return catalog.Merge(local, PhotonPlaces.Parse(document.RootElement));
+        }
+        catch (AppError e) when (e.Status == 503 && local.Length > 0 && !ct.IsCancellationRequested)
+        {
+            return local;
         }
         catch (Exception e) when (e is JsonException or FormatException)
         {
+            ct.ThrowIfCancellationRequested();
+            if (local.Length > 0) return local;
             throw new AppError(503, "A busca de lugares está temporariamente indisponível.");
         }
     }

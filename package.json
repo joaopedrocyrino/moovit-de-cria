@@ -11,7 +11,9 @@
     "test:browser": "node scripts/browser.mjs && node scripts/browser-transit.mjs",
     "data:sync": "python3 scripts/import_gtfs.py",
     "install:web": "npm ci --prefix frontend",
-    "format": "prettier --write frontend/src frontend/index.html scripts/*.mjs README.md docs .github/workflows"
+    "format": "prettier --write frontend/src frontend/index.html scripts/*.mjs README.md docs .github/workflows",
+    "places:add": "python3 scripts/places.py add",
+    "places:validate": "python3 scripts/places.py validate"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

@@ -325,6 +325,7 @@ export default function SearchPanel({
                       <strong>{place.label.split(",")[0]}</strong>
                       <small>
                         {place.label.split(",").slice(1).join(",").trim()}
+                        {place.source === "catalog" && " · Catálogo local"}
                       </small>
                     </span>
                   </button>
@@ -355,7 +356,12 @@ export default function SearchPanel({
                 >
                   © OpenStreetMap
                 </a>{" "}
-                · Photon
+                ·{" "}
+                {results.every((p) => p.source === "catalog")
+                  ? "Catálogo local"
+                  : results.some((p) => p.source === "catalog")
+                    ? "Catálogo local + Photon"
+                    : "Photon"}
               </div>
             )}
           </div>

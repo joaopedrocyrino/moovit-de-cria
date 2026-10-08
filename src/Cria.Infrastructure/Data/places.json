@@ -1,0 +1,54 @@
+[
+  {
+    "id": "chora-cafe",
+    "name": "Chora Café",
+    "aliases": ["Chora Cafe", "Chora", "Chora Café Botafogo"],
+    "address": "Rua Oliveira Fausto, 28",
+    "neighborhood": "Botafogo",
+    "lat": -22.9566277,
+    "lon": -43.1837086,
+    "enabled": true,
+    "source": "https://www.openstreetmap.org/node/13356439491",
+    "notes": "OpenStreetMap venue coordinates, checked against Photon on 2026-10-08."
+  },
+  {
+    "id": "casa-do-amor",
+    "name": "Casa do Amor",
+    "aliases": [
+      "Casa do Amor Vargem Grande",
+      "Casa do Amor Umbanda",
+      "Casa do Amor Rua Bonita"
+    ],
+    "address": "Rua Lagoa Bonita",
+    "neighborhood": "Vargem Grande",
+    "lat": -22.970418642926163,
+    "lon": -43.47979683121289,
+    "enabled": true,
+    "source": "Coordinates supplied by the project owner on 2026-10-08; street confirmed with OpenStreetMap reverse lookup.",
+    "notes": "No street number inferred from nearby map features."
+  },
+  {
+    "id": "rft-botafogo",
+    "name": "RFT - Renovação Fight Team",
+    "aliases": ["RFT", "Renovação Fight Team", "RFT Botafogo", "R.F.T."],
+    "address": "Rua General Polidoro",
+    "neighborhood": "Botafogo",
+    "lat": -22.953766213550384,
+    "lon": -43.18393118957157,
+    "enabled": true,
+    "source": "Coordinates supplied by the project owner on 2026-10-08; street confirmed with OpenStreetMap reverse lookup.",
+    "notes": "Preserves the supplied point; the nearest reverse-geocoding business is not used as the venue name or number."
+  },
+  {
+    "id": "canastra-rose",
+    "name": "Canastra Rosé",
+    "aliases": ["Canastra Rose", "Canastra Rosé Botafogo"],
+    "address": "Rua Álvaro Ramos, 154",
+    "neighborhood": "Botafogo",
+    "lat": -22.9563325,
+    "lon": -43.1817643,
+    "enabled": true,
+    "source": "https://www.openstreetmap.org/way/1000408083; venue address: https://festaculturaelazer.com.br/2023/02/canastra-rose/",
+    "notes": "OpenStreetMap building point at the published address, not a surveyed entrance; refine with an on-site GPS point if needed."
+  }
+]

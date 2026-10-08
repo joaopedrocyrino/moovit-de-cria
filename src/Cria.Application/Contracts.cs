@@ -9,7 +9,7 @@ public interface IVehicles
 {
     Task<VehicleResult> Get(string routeId, string line, int? direction, CancellationToken ct);
 }
-public sealed record Place(string Label, Point Point);
+public sealed record Place(string Label, Point Point, string Source = "photon");
 public interface IPlaces
 {
     Task<Place[]> Search(string query, Point? bias, CancellationToken ct); Task<Place?> Reverse(Point point, CancellationToken ct);

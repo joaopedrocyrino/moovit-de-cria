@@ -35,7 +35,11 @@ export type Plan = {
   source: string;
   importedAt: string;
 };
-export type Place = { label: string; point: Point };
+export type Place = {
+  label: string;
+  point: Point;
+  source?: "catalog" | "photon" | "nominatim";
+};
 export type Vehicle = {
   id: string;
   line: string;
