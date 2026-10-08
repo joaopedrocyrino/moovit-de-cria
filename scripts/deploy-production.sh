@@ -3,9 +3,10 @@ set -euo pipefail
 umask 077
 
 DEPLOY_PATH=${DEPLOY_PATH:-/opt/moovit-de-cria}
-CADDY_CONTAINER=${CADDY_CONTAINER:-csl-caddy-1}
+APP_HOSTNAME=${APP_HOSTNAME:-moovit.joaocyrino.com}
+API_HOSTNAME=${API_HOSTNAME:-moovit-api.joaocyrino.com}
 
-for required in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_SSH_KNOWN_HOSTS DEPLOY_PATH APP_HOSTNAME APP_IMAGE RELEASE_SHA GHCR_USERNAME GHCR_TOKEN CADDY_CONTAINER; do
+for required in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_SSH_KNOWN_HOSTS DEPLOY_PATH APP_HOSTNAME APP_IMAGE RELEASE_SHA GHCR_USERNAME GHCR_TOKEN API_HOSTNAME; do
   [[ -n "${!required:-}" ]] || { printf 'Missing production setting: %s\n' "$required" >&2; exit 1; }
 done
 DEPLOY_PORT=${DEPLOY_PORT:-22}
@@ -14,7 +15,7 @@ DEPLOY_PORT=${DEPLOY_PORT:-22}
 [[ "$DEPLOY_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ && "$DEPLOY_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
 [[ "$DEPLOY_PORT" =~ ^[0-9]{1,5}$ ]] && ((10#$DEPLOY_PORT > 0 && 10#$DEPLOY_PORT <= 65535))
 [[ "$DEPLOY_PATH" =~ ^/[a-zA-Z0-9_/-]+$ && "$DEPLOY_PATH" != / && "$DEPLOY_PATH" != /opt ]]
-[[ "$APP_HOSTNAME" =~ ^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}$ && "$CADDY_CONTAINER" =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]*$ ]]
+[[ "$APP_HOSTNAME" =~ ^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}$ && "$API_HOSTNAME" =~ ^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}$ ]]
 [[ "$APP_IMAGE" =~ ^ghcr\.io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ && "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
 [[ "$GHCR_USERNAME" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]*$ ]]
 
@@ -39,7 +40,7 @@ scp "${ssh_options[@]}" -P "$DEPLOY_PORT" "$work/release.tar.gz" "$destination:$
 # shellcheck disable=SC2016
 remote_command=$(python3 -c 'import shlex,sys; print(shlex.join(sys.argv[1:]))' bash -c \
   'set -e; umask 077; IFS= read -r GHCR_TOKEN; export GHCR_TOKEN; runner=$(mktemp); trap '\''rm -f -- "$runner"'\'' EXIT; cat > "$runner"; bash "$runner" "$@"' -- \
-  "$DEPLOY_PATH" "$incoming" "$APP_IMAGE" "$APP_HOSTNAME" "$CADDY_CONTAINER" "$GHCR_USERNAME")
+  "$DEPLOY_PATH" "$incoming" "$APP_IMAGE" "$APP_HOSTNAME" "$API_HOSTNAME" "$GHCR_USERNAME")
 if {
   printf '%s\n' "$GHCR_TOKEN"
   cat scripts/deploy-remote.sh

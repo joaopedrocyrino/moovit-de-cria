@@ -8,17 +8,15 @@ services:
       Geocoding__AutocompleteUrl: ${AUTOCOMPLETE_URL:-https://photon.komoot.io}
       Transit__VehiclesUrl: ${VEHICLES_URL:-https://its.mobilidade.rio/v1/geolocalizacao/veiculos}
       Geocoding__BaseUrl: ${GEOCODING_URL:-https://nominatim.openstreetmap.org}
-      Geocoding__UserAgent: ${GEOCODING_USER_AGENT:-MoovitDeCria/1.0 (+https://github.com/joaopedrocyrino)}
-      Security__TrustedProxyIp: ${TRUSTED_PROXY_IP:?Deployment discovers Caddy IP}
-      AllowedHosts: ${APP_HOSTNAME:?Set the production hostname};localhost;127.0.0.1
-      DOTNET_gcServer: '0'
+      Geocoding__UserAgent: ${GEOCODING_USER_AGENT:-MoovitDeCria/1.0 (+https://moovit.joaocyrino.com)}
+      # Discovered from this project's connector; production startup fails if absent.
+      Security__TrustedProxyIp: ${TRUSTED_PROXY_IP:-}
+      Security__FrontendOrigin: https://${APP_HOSTNAME:-moovit.joaocyrino.com}
+      AllowedHosts: ${API_HOSTNAME:-moovit-api.joaocyrino.com};localhost;127.0.0.1
+      DOTNET_gcServer: "0"
     volumes: ["transit_data:/data:ro"]
-    networks: [proxy, outbound]
-    expose: ['8080']
-    labels:
-      caddy: ${APP_HOSTNAME:?Set the production hostname}
-      caddy.reverse_proxy: '{{upstreams 8080}}'
-      caddy_ingress_network: proxy
+    networks: [origin, outbound]
+    expose: ["8080"]
     mem_limit: ${APP_MEMORY_LIMIT:-512m}
     read_only: true
     tmpfs: ["/tmp:size=67108864,mode=1777"]
@@ -27,22 +25,39 @@ services:
     restart: unless-stopped
     logging:
       driver: json-file
-      options: {max-size: '10m', max-file: '3'}
+      options: { max-size: "10m", max-file: "3" }
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.0
+    command: [tunnel, --no-autoupdate, --metrics, "0.0.0.0:2000", run]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in the droplet .env}
+    # Only origin is shared with app. Separate egress avoids ambiguous peer IPs.
+    networks: [origin, tunnel_outbound]
+    mem_limit: ${TUNNEL_MEMORY_LIMIT:-128m}
+    read_only: true
+    tmpfs: ["/tmp:size=8388608,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
   import:
     profiles: [tools]
     image: ${APP_IMAGE:?Use the release image digest}
-    user: '0:0'
+    user: "0:0"
     entrypoint: [python3, /app/scripts/import_gtfs.py]
-    command: [--snapshot, /app/snapshot/transit.sqlite, --output, /data/transit.sqlite]
+    command:
+      [--snapshot, /app/snapshot/transit.sqlite, --output, /data/transit.sqlite]
     environment:
       GTFS_URL: ${GTFS_URL:-https://dados.mobilidade.rio/gtfs/schedule}
     volumes: ["transit_data:/data"]
     networks: [outbound]
     mem_limit: ${IMPORT_MEMORY_LIMIT:-384m}
 networks:
-  proxy:
-    name: proxy
-    external: true
+  origin:
+    internal: true
   outbound: {}
+  tunnel_outbound: {}
 volumes:
   transit_data:

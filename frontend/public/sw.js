@@ -1,4 +1,4 @@
-const VERSION='cria-shell-v1';
+const VERSION='cria-shell-v2-pages';
 self.addEventListener('install',event=>{event.waitUntil(caches.open(VERSION).then(c=>c.addAll(['/','/icon.svg','/manifest.webmanifest'])));self.skipWaiting();});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==VERSION).map(k=>caches.delete(k)))));self.clients.claim();});
 self.addEventListener('fetch',event=>{

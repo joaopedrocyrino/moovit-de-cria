@@ -10,11 +10,10 @@ COPY Directory.Build.props global.json MoovitDeCria.slnx ./
 COPY src/ ./src/
 RUN dotnet restore src/Cria.Web/Cria.Web.csproj --locked-mode
 RUN dotnet publish src/Cria.Web/Cria.Web.csproj -c Release --no-restore -o /publish
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS api
 RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=backend /publish ./
-COPY --from=frontend /app/frontend/dist ./wwwroot/
 COPY scripts/import_gtfs.py /app/scripts/import_gtfs.py
 ARG PREPARE_GTFS=0
 ARG GTFS_URL=https://dados.mobilidade.rio/gtfs/schedule
@@ -25,3 +24,7 @@ ENV ASPNETCORE_HTTP_PORTS=8080 Transit__Database=/data/transit.sqlite DOTNET_gcS
 USER app
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "Cria.Web.dll"]
+
+# Local Docker development can still serve both apps from one container.
+FROM api AS local
+COPY --from=frontend /app/frontend/dist ./wwwroot/

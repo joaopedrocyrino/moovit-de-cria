@@ -13,7 +13,14 @@ builder.Services.AddSingleton<IVehicles, VehicleFeed>();
 builder.Services.AddSingleton(_ => LocalPlaces.LoadBundled());
 builder.Services.AddSingleton<IPlaces, Places>();
 builder.Services.AddSingleton<Planner>();
-builder.Services.Configure<ForwardedHeadersOptions>(o => { o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto; if (IPAddress.TryParse(builder.Configuration["Security:TrustedProxyIp"], out var p)) o.KnownProxies.Add(p); });
+CloudflareOriginSecurity? originSecurity = null;
+if (!builder.Environment.IsDevelopment())
+{
+    originSecurity = new CloudflareOriginSecurity(builder.Configuration["Security:TrustedProxyIp"], builder.Configuration["Security:FrontendOrigin"]);
+    builder.Services.Configure<ForwardedHeadersOptions>(originSecurity.ConfigureForwarding);
+    builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
+        .WithOrigins(originSecurity.FrontendOrigin).WithMethods("GET", "POST").AllowAnyHeader()));
+}
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = 429;
@@ -22,7 +29,6 @@ builder.Services.AddRateLimiter(o =>
     o.AddConcurrencyLimiter("plans", p => { p.PermitLimit = 2; p.QueueLimit = 0; });
 });
 var app = builder.Build();
-app.UseForwardedHeaders();
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
@@ -38,6 +44,12 @@ app.Use(async (context, next) =>
     catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
     catch (Exception) { context.Response.StatusCode = 500; await context.Response.WriteAsJsonAsync(new { message = "Não foi possível completar a operação." }); }
 });
+if (originSecurity is not null)
+{
+    app.Use((context, next) => originSecurity.Enforce(context, next));
+    app.UseForwardedHeaders();
+    app.UseCors();
+}
 app.UseRateLimiter();
 app.MapGet("/api/health/live", () => Results.Ok(new { status = "live" }));
 app.MapGet("/api/health/ready", (ITransitStore store) => { store.Get(); return Results.Ok(new { status = "ready" }); });
@@ -70,7 +82,7 @@ app.MapGet("/api/vehicles", (string line, string? routeId, int? direction, IVehi
 });
 app.MapGet("/api/shapes/{id}", (string id, ITransitStore store) => id.Length > 100 ? Results.BadRequest() : Results.Ok(store.Shape(id)));
 var webRoot = app.Environment.WebRootPath ?? Path.Combine(app.Environment.ContentRootPath, "wwwroot");
-if (File.Exists(Path.Combine(webRoot, "index.html")))
+if (app.Environment.IsDevelopment() && File.Exists(Path.Combine(webRoot, "index.html")))
 {
     app.UseDefaultFiles();
     app.UseStaticFiles(new StaticFileOptions { OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = c.Context.Request.Path.StartsWithSegments("/assets") ? "public,max-age=31536000,immutable" : "no-cache" });

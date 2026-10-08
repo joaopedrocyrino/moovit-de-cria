@@ -1,155 +1,177 @@
-# First deployment: moovit.joaocyrino.com
+# Production: Cloudflare Pages + private Tunnel API
 
-One React/.NET image runs behind the droplet's existing `csl-caddy-1` and external Docker network `proxy`. GTFS lives in a persistent Docker volume. Only pushes to **main** run Actions, including a merge into main. Staging and pull requests do not trigger the workflow.
+Frontend: **https://moovit.joaocyrino.com** on Cloudflare Pages. API: **https://moovit-api.joaocyrino.com** through Cloudflare Tunnel to the shared droplet. Only pushes/merges to **main** run Actions; staging and pull requests trigger nothing.
 
-## 1. DNS and shared proxy
+## Architecture and access control
 
-Add an `A` record for `moovit.joaocyrino.com` pointing to your shared droplet. Remove an unrelated `AAAA` record unless IPv6 reaches this same droplet. Ports 80 and 443 must reach the existing Caddy, which handles the certificate automatically through Docker labels.
-
-Check that the shared services exist:
-
-```bash
-docker inspect --format '{{.Name}}' csl-caddy-1
-docker network inspect proxy --format '{{.Name}}'
+```mermaid
+flowchart LR
+  Browser --> Pages[Cloudflare Pages: React assets]
+  Browser --> Edge[Cloudflare HTTPS: API hostname]
+  Edge --> Tunnel[cloudflared on droplet]
+  Tunnel --> API[private .NET API:8080]
+  API --> Data[read-only transit snapshot]
+  API --> Providers[public transit / geocoding providers]
 ```
 
-This project does not start another proxy or publish a production host port.
+- Production exposes no Moovit host ports, Caddy labels or membership in the shared `proxy` network. Existing apps keep their shared Caddy routes.
+- The API and connector share an **internal** Docker `origin` network. Each has separate Internet egress; the API still needs outbound provider requests.
+- The API checks its actual TCP peer against the connector's private IP **before** processing forwarded headers. It rejects other peers and missing/invalid `CF-Connecting-IP` or non-HTTPS forwarded requests.
+- The client IP used for rate limiting comes only from `CF-Connecting-IP` received through that trusted connector. Arbitrary `X-Forwarded-For` does not grant access or change the rate-limit bucket.
+- CORS permits only `https://moovit.joaocyrino.com`. CORS controls browser access; the public API remains callable through Cloudflare without user authentication.
+- Only GET `/api/health/live` and `/api/health/ready` allow container-local loopback probes. Other loopback requests are rejected in production.
+- The tunnel token stays in the droplet `.env`. GitHub gets a separate **Pages deployment** token and the existing SSH/GHCR credentials. Neither token enters the React bundle.
+- Tunnel connectivity is outbound; it needs TCP/UDP port 7844 egress. The droplet's existing SSH access and other apps' inbound ports stay unchanged. A host administrator with Docker access can change the configuration; this does not isolate the app from root.
 
-## 2. Create the server configuration
+## 1. Create Cloudflare Pages
 
-Over your existing trusted SSH connection, create `/opt/moovit-de-cria` owned by the **actual account used by DEPLOY_USER**. If you continue deploying as root:
+Cloudflare DNS for `joaocyrino.com` is already active. Create a **Direct Upload** Pages project called `moovit-de-cria`, with production branch `main`. Avoid connecting Git integration: GitHub Actions controls publishing.
+
+To create the project using Wrangler, run locally with the Cloudflare Account ID and a Pages API token supplied as shell environment variables (never committed):
 
 ```bash
-mkdir -p /opt/moovit-de-cria
-chmod 700 /opt/moovit-de-cria
+npx --yes wrangler@4.148.0 pages project create moovit-de-cria --production-branch=main
 ```
 
-For a different deploy account, set the directory owner to that existing account. It needs Docker access and Python 3, `flock`, `curl`, and Docker Compose v2 installed on the server.
+Wrangler reads `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Create the token with **Account → Cloudflare Pages → Edit**, scoped to your account. The Account ID is shown in the Cloudflare dashboard.
 
-Create `/opt/moovit-de-cria/.env` directly on the droplet, using [.env.production.example](../.env.production.example) as the template. Set:
+In this Pages project's **Custom domains**, add `moovit.joaocyrino.com`. Remove the old Moovit `A`/`AAAA` records pointing at the droplet when making this cutover; let Pages create its CNAME. Do not create only a DNS CNAME without attaching the domain to Pages. If the dashboard requires an initial deployment first, finish the first Actions deployment, then attach the domain; the initial site also has a `pages.dev` URL. Only the custom frontend origin is permitted by the API.
+
+There can be a short transition while the first Pages upload and DNS/domain certificate activation complete. Subsequent frontend deployments are published after API readiness succeeds.
+
+## 2. Create the Cloudflare Tunnel
+
+In the Cloudflare dashboard, open **Networking → Tunnels** (or **Zero Trust → Networks → Connectors** in the older dashboard), create a remotely managed **Cloudflared** tunnel called `moovit-de-cria` and select Docker. Copy its token **only onto the droplet**, as described below. Do not run the dashboard's Docker command: Compose manages the connector.
+
+Add its **Published application** route:
+
+| Setting | Value |
+| --- | --- |
+| Public hostname | `moovit-api.joaocyrino.com` |
+| Service type | HTTP |
+| Service URL | `app:8080` (equivalent to `http://app:8080`) |
+
+Cloudflare creates the proxied tunnel DNS record. Do not point this hostname at the droplet IP or attach it to Caddy. Keep the HTTP Host header unchanged, so the API receives `moovit-api.joaocyrino.com`. Enable **Always Use HTTPS** for this hostname/zone. Keep **Pseudo IPv4** disabled or in Add Header mode, preserving the real `CF-Connecting-IP`.
+
+Use the first-level `moovit-api.joaocyrino.com`: standard Universal SSL covers it. The deeper `api.moovit.joaocyrino.com` would need additional certificate coverage on a normal full-zone setup.
+
+Create a Cloudflare **Cache Rule** to bypass caching for the API hostname. Responses already use `Cache-Control: no-store`; do not override it with Cache Everything. Cloudflare WAF/rate-limit rules may be added for this hostname when traffic warrants them; do not put an interactive challenge on every API request.
+
+## 3. Update the droplet-owned configuration
+
+Keep the existing deploy account and `/opt/moovit-de-cria/.env`. Merge the new fields from [.env.production.example](../.env.production.example); **do not overwrite** your existing server settings:
 
 ```dotenv
 APP_HOSTNAME=moovit.joaocyrino.com
-GTFS_URL=https://dados.mobilidade.rio/gtfs/schedule
-VEHICLES_URL=https://its.mobilidade.rio/v1/geolocalizacao/veiculos
-AUTOCOMPLETE_URL=https://photon.komoot.io
-GEOCODING_URL=https://nominatim.openstreetmap.org
-GEOCODING_USER_AGENT=MoovitDeCria/1.0 (+https://moovit.joaocyrino.com)
+API_HOSTNAME=moovit-api.joaocyrino.com
+CLOUDFLARE_TUNNEL_TOKEN=YOUR_REAL_TUNNEL_TOKEN
 APP_MEMORY_LIMIT=512m
+TUNNEL_MEMORY_LIMIT=128m
 IMPORT_MEMORY_LIMIT=384m
 ```
+
+The file must belong to your actual `DEPLOY_USER`, with mode 0600:
 
 ```bash
 chmod 600 /opt/moovit-de-cria/.env
 ```
 
-The file must belong to DEPLOY_USER. It remains on the server; it is not an Actions secret or deployment upload. Retaining unrestricted SSH/Docker access means this account can technically read it; no restricted SSH command account is introduced here.
+Python 3, Docker Compose v2, `flock` and `curl` must exist on the droplet. The deployment discovers the connector's private IP automatically; **do not hardcode `TRUSTED_PROXY_IP`** in `.env`. The existing `moovit-de-cria_transit_data` volume and project name are preserved.
 
-GitHub Actions downloads and compiles the public GTFS while building the release image. Deployment copies and validates that prepared snapshot with a 64 MiB installer limit, then the installer exits. The application still needs memory for the real timetable: measured app usage after a real route request was approximately 316 MiB, so container limits alone do not make it fit on a busy 1 GiB host.
+GitHub never uploads/downloads this `.env`. Retaining unrestricted SSH/Docker access means the deploy account can technically read it. The application does not receive the tunnel token; only the connector does.
 
-For a small shared host, check `free -h`, `swapon --show` and `df -h /` before the first deployment. If there is no swap and several GiB of disk space are available, these root commands create 3 GiB of swap without restarting apps. They refuse to overwrite an existing `/swapfile-extra`:
+The connector is one additional small service with a 128 MiB memory cap, not a reservation. The real timetable/API still needs RAM: a previous real route request used roughly 316 MiB. On the 1 GiB shared host, retain the existing swap/headroom plan; moving static assets to Pages does not eliminate timetable memory usage. Check `free -h` and `swapon --show` before cutover. Deployment still installs the CI-prepared GTFS through a one-off 64 MiB job, without processing the whole feed on the server.
 
-```bash
-(
-  set -e
-  umask 077
-  dd if=/dev/zero of=/swapfile-extra bs=1M count=3072 conv=excl status=progress
-  mkswap /swapfile-extra
-  swapon /swapfile-extra
-  printf '/swapfile-extra none swap defaults,nofail 0 0\n' >> /etc/fstab
-)
-free -h
-swapon --show
-```
+## 4. Configure GitHub Actions
 
-Swap uses disk for less-active memory and can reduce memory-exhaustion failures, but it is slower than RAM. If the host remains slow under normal app traffic, reduce the running workload or increase physical RAM.
+Use the **production** GitHub environment. Keep the existing deployment secrets:
 
-## 3. GitHub configuration
+| Secret | Value |
+| --- | --- |
+| `DEPLOY_HOST` | Droplet IPv4/SSH hostname |
+| `DEPLOY_USER` | Existing Docker-capable deploy user |
+| `DEPLOY_SSH_KEY` | Existing authorized private deployment key |
+| `DEPLOY_SSH_KNOWN_HOSTS` | Verified server host-key line |
+| `GHCR_USERNAME` | Account with read access to the image package |
+| `GHCR_TOKEN` | Token with `read:packages` for the droplet pull |
 
-Create your repository, then create the GitHub environment **production**. Put these secrets there (repository secrets also work):
+Add these **production secrets**:
 
-| Secret                   | Value                                                            |
-| ------------------------ | ---------------------------------------------------------------- |
-| `DEPLOY_HOST`            | Droplet IPv4 address or SSH hostname                             |
-| `DEPLOY_USER`            | Existing deploy account, e.g. `root` if retaining current access |
-| `DEPLOY_SSH_KEY`         | Full private key whose public key is authorized on the droplet   |
-| `DEPLOY_SSH_KNOWN_HOSTS` | Verified SSH host-key line, described below                      |
-| `GHCR_USERNAME`          | GitHub account with access to the image package                  |
-| `GHCR_TOKEN`             | Token with `read:packages` for pulling that package              |
+| Secret | Value |
+| --- | --- |
+| `CLOUDFLARE_API_TOKEN` | Pages Edit API token from step 1 |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
 
-The image build publishes with Actions' own `GITHUB_TOKEN`; GHCR_TOKEN is for the droplet pull only. Ensure the newly created package grants the chosen account read access. A private repository may require appropriate repository access too.
+Set `CLOUDFLARE_PAGES_PROJECT=moovit-de-cria` as a production variable (this is also the default).
 
-Set these environment/repository **variables**:
+Public hostname overrides must be **repository variables**, so the tested artifact and API use the same addresses:
 
-| Variable          | Value                                      |
-| ----------------- | ------------------------------------------ |
-| `APP_HOSTNAME`    | `moovit.joaocyrino.com` — required         |
-| `DEPLOY_PATH`     | `/opt/moovit-de-cria` (default if omitted) |
-| `DEPLOY_PORT`     | `22` (default if omitted)                  |
-| `CADDY_CONTAINER` | `csl-caddy-1` (default if omitted)         |
+| Repository variable | Default |
+| --- | --- |
+| `APP_HOSTNAME` | `moovit.joaocyrino.com` |
+| `API_HOSTNAME` | `moovit-api.joaocyrino.com` |
+| `GTFS_URL` | `https://dados.mobilidade.rio/gtfs/schedule` |
 
-For a different **public** GTFS feed, also set the **repository** variable `GTFS_URL` to exactly match the droplet's `GTFS_URL`. The default official Rio feed requires no new variable. The build never reads or uploads the server `.env`; do not put private feed credentials in a build argument or repository variable.
+`DEPLOY_PATH` defaults to `/opt/moovit-de-cria` and `DEPLOY_PORT` to `22`; those can be production variables. The old `CADDY_CONTAINER` variable is no longer used by this app. Never put the tunnel token in GitHub or a `VITE_` variable.
 
-Obtain the host public key over a trusted connection or the DigitalOcean console:
+For a new server key, obtain `/etc/ssh/ssh_host_ed25519_key.pub` over trusted SSH or DigitalOcean console. `DEPLOY_SSH_KNOWN_HOSTS` contains `YOUR_DEPLOY_HOST ssh-ed25519 ACTUAL_PUBLIC_KEY`; use `[HOST]:PORT` for a custom SSH port. Existing verified secrets remain valid.
 
-```bash
-cat /etc/ssh/ssh_host_ed25519_key.pub
-```
+## 5. Push and deploy
 
-If that prints `ssh-ed25519 AAAA... root@server`, the secret should be:
-
-```text
-YOUR_ACTUAL_DROPLET_IP ssh-ed25519 AAAA...actual-public-key...
-```
-
-Use the exact DEPLOY_HOST at the start, omit the trailing comment, and use `[HOST]:PORT` for a nonstandard port. Do not paste the private server host key.
-
-## 4. First push
-
-The delivered project already has a local main branch. After configuring GitHub and the droplet:
+After the Pages project, tunnel route, server `.env` and GitHub settings are ready:
 
 ```bash
 cd ~/code/moovit-de-cria
 git add .
-git commit -m "Create Rio transit web app"
-git remote add origin git@github.com:YOUR_ACCOUNT/YOUR_REPOSITORY.git
-git push -u origin main
+git commit -m "Deploy frontend to Pages and API through Cloudflare Tunnel"
+git push origin main
 ```
 
-No `.env`, downloaded feed, SQLite database, node_modules or build artifacts are committed. The workflow tests the backend/importer/GPS logic, prepares the real public timetable inside the image build, browser-tests the monolith with a separate disposable fixture, publishes its digest, then deploys that exact image. Production installs the prepared real feed; synthetic browser-test data is never bundled as production data.
+The workflow checks deployment configuration, runs backend/frontend/importer tests, builds the **API-only** image with official GTFS, builds React with the public HTTPS API origin, and browser-tests that **exact Pages artifact** with the disposable API image. Production-origin tests exercise peer rejection, header spoofing, CORS and real per-client rate limits. The fixture is not bundled as production data.
 
-The remote deployment locks concurrent jobs, validates the existing server `.env`, installs the prepared timetable atomically, starts the app and checks HTTPS readiness through shared Caddy. Corrupt, expired and mismatched-source snapshots are rejected before replacing the existing file. A failed rollout restores the previous image when there is a previous successful release. A lost SSH connection requires checking the server because completion is then unknown.
+It publishes the image digest and saves the tested static artifact. The droplet pulls the image, installs the snapshot, starts the connector, discovers its private IP and starts the API. Readiness checks cover both local API/tunnel and the public API **through Cloudflare**. Pages receives the saved artifact only after the API deploy succeeds. No rebuild happens in the publish job.
 
-## 5. Refresh official schedules
+Rollback restores the previous image using the **new private Compose configuration**, never the old public Caddy configuration. During the first migration, an old image may lack cross-origin CORS support; a failed cutover can therefore leave the previous API private but the frontend unavailable until fixed. Once a successful Cloudflare release exists, image rollback retains that release's behavior. API and Pages are separate deployments, not an atomic cross-provider transaction; a Pages failure leaves the API deployed and the previous Pages site. Re-running that failed Pages job publishes the same tested artifact.
 
-On the small shared droplet, refresh the feed in GitHub Actions: open the latest main workflow and select **Re-run all jobs**. This rebuilds the image with current public timetables and deploys the new digest. **Re-run failed jobs** alone reuses an already successful image build, so it does not refresh its bundled timetable.
+Check:
 
-For a server with sufficient resources, the existing manual server-side refresh remains available without building a new image:
+```bash
+curl --fail https://moovit-api.joaocyrino.com/api/health/ready
+curl -I https://moovit.joaocyrino.com
+```
+
+Direct droplet HTTP(S) access no longer routes this API. Normal users access the public API hostname through Cloudflare. Do not close global 80/443 ports, because other shared apps still use them.
+
+## Refresh and focused diagnostics
+
+For the small host, use **Re-run all jobs** on the main workflow to prepare fresh GTFS in CI. Re-running only a failed deploy reuses its original image/snapshot.
+
+On a larger host with enough import headroom, manual refresh remains available:
 
 ```bash
 bash /opt/moovit-de-cria/current/refresh-data.sh
 ```
 
-For a custom path/Caddy name, pass both as arguments. The helper reuses the deployment lock and already installed image. Failed imports preserve the prior snapshot; successful replacement is picked up by the app without restarting.
+The optional first argument is a custom deploy path; there is no Caddy argument now. It uses the deployment lock and preserves the previous snapshot on import failure.
 
-Only on a server with enough import headroom, you can schedule that server-side refresh in the **deploy account's** crontab:
-
-```cron
-15 4 * * * /bin/bash /opt/moovit-de-cria/current/refresh-data.sh >> /opt/moovit-de-cria/data-refresh.log 2>&1
-```
-
-Rotate that log using your server's normal log policy. Inspect it if a provider stops responding. The database contains public transit schedules, not personal trip history.
-
-## Targeted diagnostics
+For a failed deploy:
 
 ```bash
-docker logs --tail 80 moovit-de-cria-app-1
-docker logs --tail 80 csl-caddy-1
-curl --fail https://moovit.joaocyrino.com/api/health/ready
+docker logs --tail 60 moovit-de-cria-app-1
+docker logs --tail 60 moovit-de-cria-tunnel-1
+docker inspect --format '{{with index .NetworkSettings.Networks "moovit-de-cria_origin"}}{{.IPAddress}}{{end}}' moovit-de-cria-tunnel-1
 ```
 
-Only the main workflow deploys here. No second staging installation or duplicate database is created.
+Do not paste `.env` or full `docker inspect`/`compose config` output: the connector environment contains the tunnel token. A disconnected SSH session means completion is unknown; inspect `/opt/moovit-de-cria/current` before retrying.
 
-## Address and business-name autocomplete
+## Local development
 
-`AUTOCOMPLETE_URL` defaults to Photon and needs no API key. Set it in the droplet-owned `.env` only if changing providers. Search-as-you-type never calls public Nominatim. Public Photon has no availability guarantee and can throttle extensive usage; use your own compatible service before scaling. Results depend on OpenStreetMap coverage, so businesses missing there will not appear automatically.
+`npm run dev` and local `docker compose up --build` continue using Vite's `/api` proxy or the local combined container. No Cloudflare credentials are required locally. `VITE_API_ORIGIN` defaults to unset; production sets it at build time to `https://moovit-api.joaocyrino.com`. The service worker caches the local app shell/assets only, never cross-origin API/GPS responses or external map tiles.
+
+## References
+
+- [Pages direct upload from CI](https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/)
+- [Pages custom domains](https://developers.cloudflare.com/pages/configuration/custom-domains/)
+- [Cloudflare Tunnel setup](https://developers.cloudflare.com/tunnel/get-started/)
+- [Tunnel token environment variable](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/)
+- [Universal SSL coverage](https://developers.cloudflare.com/ssl/edge-certificates/universal-ssl/limitations/)

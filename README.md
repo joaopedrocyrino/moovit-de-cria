@@ -1,6 +1,6 @@
 # Moovit de Cria
 
-A mobile-first Rio de Janeiro transit web app: no advertisements or paid GPS feature. React/TypeScript + Vite/Leaflet, .NET 10 REST API, and a read-only SQLite timetable snapshot. One deployable Docker monolith, behind the existing shared Caddy at **moovit.joaocyrino.com**.
+A mobile-first Rio de Janeiro transit web app: no advertisements or paid GPS feature. React/TypeScript + Vite/Leaflet, .NET 10 REST API, and a read-only SQLite timetable snapshot. One source repository: the React frontend is deployed to **Cloudflare Pages** at **moovit.joaocyrino.com**; the .NET API runs privately on the shared droplet, reached through **Cloudflare Tunnel** at **moovit-api.joaocyrino.com**.
 
 ## What works
 
@@ -10,7 +10,7 @@ A mobile-first Rio de Janeiro transit web app: no advertisements or paid GPS fea
 - Route shapes and stops from the official GTFS; server-side live vehicle positions from the current SMTR ITS gateway. Select a specific vehicle on the map or list.
 - Explicit “Já embarquei” enables high-accuracy phone GPS, stop progress, vibration and an optional notification before alighting. Confirm alighting to move to the next connection.
 - Installable PWA shell, screen wake lock while riding when supported, graceful denied-GPS/no-route/no-live-data states. No simulated public vehicles or fake schedules in normal usage.
-- Main-only GitHub Actions: tests → image build → deterministic browser checks → GHCR → shared droplet. Staging and pull requests trigger no Actions.
+- Main-only GitHub Actions: deployment preflight → tests → API image + Pages artifact → deterministic browser/origin checks → GHCR → private droplet API → Cloudflare Pages. Staging and pull requests trigger no Actions.
 
 ## Important current boundaries
 
@@ -131,7 +131,7 @@ Photon can index them. No extra service or public write endpoint is required.
 - Public map tiles receive viewport requests; place/address autocomplete reaches Photon and reverse GPS lookup reaches Nominatim through the API. These providers have their own privacy policies. Install an appropriate provider/self-hosted service before scaling beyond moderate use.
 - The curated local catalog complements Photon autocomplete with a 450 ms client debounce, minimum three characters, cancellable requests, cache and Rio bounding-box/location bias. OpenStreetMap business-name coverage includes the verified Chora Café in Botafogo. Public demo usage must stay moderate; `AUTOCOMPLETE_URL` can point to your own Photon instance or a compatible provider. Nominatim is used only for one-off reverse GPS lookup, never keystroke autocomplete. Both use an identifying User-Agent, server cache and shared throttle.
 - OpenStreetMap attribution stays visible. Tile URL is configurable through `Map__TilesUrl`; the service worker does not cache/prefetch external tiles or cache GPS/API responses.
-- Planning concurrency capped; global per-IP API rate limit; exact trusted proxy IP discovered at deployment. No uploads, public admin or write-to-database API.
+- Planning concurrency capped; per-client API rate limit using trusted Cloudflare headers; direct API access blocked before header forwarding. Connector IP discovered at deployment; exact frontend CORS origin. No uploads, public admin or write-to-database API.
 - Server `.env` belongs to the deploy user, mode 0600. SSH/GHCR credentials live in Actions secrets; deployment scripts never transfer the server file.
 
 ## Test
@@ -144,20 +144,20 @@ npx playwright install chromium webkit
 
 `npm test` covers routing/transfers, service calendars, exact/frequency schedules, after-midnight trips, money/BUC/unknown fares, GPS parser freshness, importer failure atomicity and phone stop-alert rules.
 
-Browser tests use an **explicit synthetic feed** only in disposable testing environments, and intercept external geocoding/vehicle calls. They never overwrite the installed real snapshot. See `scripts/browser.mjs`; `BASE_URL` defaults to 5193, `BROWSER=webkit` selects the Safari engine. CI runs the compiled Docker app against a temporary test feed.
+Browser tests use an **explicit synthetic feed** only in disposable testing environments, and intercept external geocoding/vehicle calls. They never overwrite the installed real snapshot. See `scripts/browser.mjs`; `BASE_URL` defaults to 5193, `BROWSER=webkit` selects the Safari engine. CI browser-tests the exact Pages build against the API-only Docker image and a temporary test feed. API-origin isolation is separately tested with real HTTP requests on a private Docker network.
 
 See [docs/deployment.md](docs/deployment.md) for the first push. Production GTFS/live feeds, precise arrival prediction, walkability and battery/background behavior must be verified on real journeys before relying on it for travel.
 
 ### Validation performed
 
-- 68 .NET tests (including partial/empty GPS refreshes, minute bootstrap/pagination, missing provider identifiers, direction/variant changes, outages/expiry, scheduled departure, arrive-by, calendar/overnight rules, Photon parsing, metro routing/fares and shared GPS provider caching), 14 frontend logic tests (phone GPS, Rio time, compact status and all-line vehicle filtering) and 4 importer tests passed.
+- 89 .NET tests (including partial/empty GPS refreshes, minute bootstrap/pagination, missing provider identifiers, direction/variant changes, outages/expiry, scheduled departure, arrive-by, calendar/overnight rules, Photon parsing, metro routing/fares and shared GPS provider caching), 17 frontend logic tests (phone GPS, Rio time, compact status and all-line vehicle filtering) and 18 Python tests (importer/catalog/deployment preflight) passed.
 - The custom catalog passed 25 place-search tests and five CLI tests. Direct HTTP checks verified all four pins and local suggestions during a Photon outage; the React production build passed.
 - Chromium and WebKit passed search → route selection → boarding → transfer checks against the compiled monolith at mobile and desktop widths. Inline autocomplete, keyboard selection, invalidating edited coordinates and stale-response handling also passed in both engines.
 - The real official feed imported 7,694 stops and 15,107 timetable patterns into a 108 MiB snapshot, including inside the final Linux image with a 384 MiB importer limit.
 - The read-only, non-root app returned eight real route alternatives under its 512 MiB limit; measured container usage after that request was approximately 316 MiB. Your 1 GiB shared droplet still needs enough free memory alongside its existing apps; these are container limits, not a guarantee that all services fit together.
 - The current ITS feed returned real vehicles for line 825 in a targeted check; missing vehicles are shown honestly rather than simulated.
 
-Phone hardware/background behavior and a deployment on your actual droplet have not been tested.
+Cloudflare split-deployment changes are tested locally; account/DNS setup and the live deployment still require the configuration in [docs/deployment.md](docs/deployment.md). Phone hardware/background behavior remains unverified.
 
 ## Sources verified during implementation (2026-10-07/08)
 

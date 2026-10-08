@@ -1,3 +1,4 @@
+import { connectTestApi } from "./browser-api.mjs";
 import { chromium, webkit } from "@playwright/test";
 import assert from "node:assert/strict";
 // Deterministic UI-only fixtures; backend routing/GPS filtering have separate .NET tests.
@@ -83,6 +84,7 @@ for (const [name, engine] of engines) {
       },
     });
     const page = await context.newPage();
+    await connectTestApi(page);
     const errors = [];
     const requests = [];
     const planRequests = [];

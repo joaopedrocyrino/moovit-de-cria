@@ -1,15 +1,19 @@
+import { connectTestApi } from "./browser-api.mjs";
 import { chromium, webkit } from "@playwright/test";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
 const base = process.env.BASE_URL || "http://127.0.0.1:5193";
 const engine = process.env.BROWSER === "webkit" ? webkit : chromium;
-// Wait for the compiled monolith, including container startup in CI.
+// Wait for the API, including container startup in CI.
 let ready = false;
 for (let attempt = 0; attempt < 30; attempt++) {
   try {
-    const response = await fetch(base + "/api/health/ready", {
-      signal: AbortSignal.timeout(3000),
-    });
+    const response = await fetch(
+      (process.env.API_TEST_URL || base) + "/api/health/ready",
+      {
+        signal: AbortSignal.timeout(3000),
+      },
+    );
     if (response.ok) {
       ready = true;
       break;
@@ -33,6 +37,7 @@ try {
     permissions: ["geolocation"],
   });
   const page = await context.newPage();
+  await connectTestApi(page);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   // External providers are replaced only in this test; the app/API router stays real.

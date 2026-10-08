@@ -7,7 +7,7 @@
     "dev": "python3 scripts/dev.py",
     "build": "npm run build --prefix frontend && python3 scripts/dotnet.py build MoovitDeCria.slnx -c Release",
     "test": "python3 scripts/dotnet.py build MoovitDeCria.slnx && python3 scripts/dotnet.py test --solution MoovitDeCria.slnx --no-build && npm run test:web && python3 -m unittest discover -s tests/python",
-    "test:web": "node --experimental-strip-types --test frontend/src/lib/journey.test.ts frontend/src/lib/timing.test.ts frontend/src/lib/routeVehicles.test.ts",
+    "test:web": "node --experimental-strip-types --test frontend/src/lib/journey.test.ts frontend/src/lib/timing.test.ts frontend/src/lib/routeVehicles.test.ts frontend/src/lib/apiUrl.test.ts",
     "test:browser": "node scripts/browser.mjs && node scripts/browser-transit.mjs",
     "data:sync": "python3 scripts/import_gtfs.py",
     "install:web": "npm ci --prefix frontend",
