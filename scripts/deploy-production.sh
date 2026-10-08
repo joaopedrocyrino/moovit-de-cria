@@ -38,7 +38,7 @@ scp "${ssh_options[@]}" -P "$DEPLOY_PORT" "$work/release.tar.gz" "$destination:$
 # Buffer the script before executing so Docker commands cannot consume script stdin.
 # The quoted program expands on the remote host.
 # shellcheck disable=SC2016
-remote_command=$(python3 -c 'import shlex,sys; print(shlex.join(sys.argv[1:]))' bash -c \
+remote_command=$(node scripts/shell-quote.mjs bash -c \
   'set -e; umask 077; IFS= read -r GHCR_TOKEN; export GHCR_TOKEN; runner=$(mktemp); trap '\''rm -f -- "$runner"'\'' EXIT; cat > "$runner"; bash "$runner" "$@"' -- \
   "$DEPLOY_PATH" "$incoming" "$APP_IMAGE" "$APP_HOSTNAME" "$API_HOSTNAME" "$GHCR_USERNAME")
 if {

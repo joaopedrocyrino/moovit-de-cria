@@ -10,7 +10,7 @@ A mobile-first Rio de Janeiro transit web app: no advertisements or paid GPS fea
 - Route shapes and stops from the official GTFS; server-side live vehicle positions from the current SMTR ITS gateway. Select a specific vehicle on the map or list.
 - Explicit “Já embarquei” enables high-accuracy phone GPS, stop progress, vibration and an optional notification before alighting. Confirm alighting to move to the next connection.
 - Installable PWA shell, screen wake lock while riding when supported, graceful denied-GPS/no-route/no-live-data states. No simulated public vehicles or fake schedules in normal usage.
-- Main-only GitHub Actions: deployment preflight → tests → API image + Pages artifact → deterministic browser/origin checks → GHCR → private droplet API → Cloudflare Pages. Staging and pull requests trigger no Actions.
+- Main-only GitHub Actions: deployment preflight → tests → API image + two Pages artifacts → deterministic browser/origin checks → GHCR → private droplet API → client/admin Cloudflare Pages. Staging and pull requests trigger no Actions.
 
 ## Important current boundaries
 
@@ -24,22 +24,30 @@ The current phone implementation tracks while the app is active. **Background GP
 
 ## Run locally
 
-Requirements: .NET 10 SDK, Node 22.18+ and Python 3. Native scripts also detect the standard macOS/Linux SDK locations when npm cannot find a shell alias.
+Requirements: .NET 10 SDK and Node 22.18+. All project tooling uses Node.js; Python is not required. Native scripts also detect the standard macOS/Linux SDK locations when npm cannot find a shell alias.
+
+Scripts are plain ESM (`scripts/*.mjs`) and use Node's process/file APIs. The GTFS
+importer uses built-in `node:sqlite`, streaming `csv-parse` and `yauzl`; fixtures
+use `yazl` only in development. `node:sqlite` is experimental in Node 22 and may
+print a warning; it does not require an extra flag on the supported Node version.
+`npm run test:scripts` runs the tooling tests with Node's test runner. Docker
+contains the same importer and Node runtime; the droplet needs neither npm nor
+a host Node/Python installation.
 
 ```bash
 cd ~/code/moovit-de-cria
 cp .env.example .env
 npm install
-npm run install:web
 npm run data:sync
 npm run dev
 ```
 
-- React: http://localhost:4193
+- Client: http://localhost:4193
+- Admin: http://localhost:4194 (Hello world placeholder)
 - API: http://localhost:5193/api/health/ready
-- Both support reload; Vite handles React refresh and .NET watch handles C#.
+- `npm run dev` starts all three servers; Vite handles React refresh and .NET watch handles C#. `npm run dev:client` and `npm run dev:admin` start each frontend independently.
 - The first real GTFS snapshot is already imported in the locally delivered project; `data:sync` refreshes it. `.data` is excluded from Git and image builds.
-- `data:sync` reads `GTFS_URL` from root `.env` or environment. Import a downloaded ZIP using `python3 scripts/import_gtfs.py --file /path/to/gtfs.zip`.
+- `data:sync` reads `GTFS_URL` from root `.env` or environment. Import a downloaded ZIP using `node scripts/import-gtfs.mjs --file /path/to/gtfs.zip`.
 
 On physical phones, HTTP over your Mac's LAN address is not a secure context. Use a trusted HTTPS development endpoint or the production HTTPS site for geolocation, notifications and wake lock. A desktop `localhost` exception does not apply to a remote phone.
 
@@ -52,10 +60,10 @@ docker compose up -d --build app
 
 Open http://localhost:5193 (API and bundled React together). Stop this app before native development to free port 5193. `make refresh` rebuilds both backend and frontend.
 
-Docker-only import, without local Python:
+Docker-only import, without local Node.js or .NET:
 
 ```bash
-docker compose --profile tools run --rm import
+docker compose --profile tools run --build --rm import
 docker compose up -d --build app
 ```
 
@@ -72,15 +80,35 @@ src/Cria.Domain          Coordinates, services, routes, timetables, trips, fares
 src/Cria.Application     Route search, calendars/frequencies, fare calculation, ports
 src/Cria.Infrastructure  SQLite snapshot reader, bundled metro graph, SMTR GPS, rate-limited geocoding
 src/Cria.Web             REST, validation/error responses, limits, React hosting
-frontend/src/components Map, search, route list, lazy active journey + own CSS
-frontend/src/lib         Pure GPS validation and stop-progress logic
-scripts/import_gtfs.py  Streaming CSV ingestion and atomic snapshot replacement
+frontend/client         Existing map app: components, CSS and journey logic
+frontend/admin          Minimal React/Vite admin app, currently Hello world
+frontend/shared         @cria/shared: components, layout, hooks, api, pages, contracts and helpers
+scripts/import-gtfs.mjs Streaming CSV ingestion and atomic snapshot replacement
 tests                   Domain/provider tests + deterministic import/browser fixtures
 ```
 
 SQLite stores stops, routing patterns/windows, service calendars/exceptions, GTFS shapes and provenance/import validity. The importer orders stop times on disk, accepts interleaved trips, deduplicates identical timetable patterns, preserves pickup/dropoff flags, and publishes with atomic rename only after success. Failed refreshes leave the previous snapshot usable. Services after midnight use the previous service day; `calendar_dates` overrides weekdays. Expired `feed_info` is rejected for planning.
 
 All fare amounts are **integer centavos** throughout API and calculations. Missing/ambiguous GTFS fares remain unknown. “Tarifas individuais” sums boarding fares. Choosing Jaé enables an explicitly conditional BUC estimate for up to three eligible municipal boardings in three hours including BRT; same-direction/card eligibility is not verifiable from GTFS. Special/executive fares retain their GTFS price and never receive an automatic ordinary-fare discount. No personal discounts, BUM or free-transit eligibility are assumed. Bus–metro discounted integration is not assumed; only internal same-station transfers between metro lines avoid a second metro charge.
+
+## Frontend workspaces
+
+The root `package.json` manages `frontend/client`, `frontend/admin` and `frontend/shared`
+with npm workspaces and a single root lockfile. Run `npm ci` from the repository root.
+Do not install each folder separately. `npm run build:web` type-checks shared and builds
+both apps into their own `dist` folders; `npm run build` also builds .NET.
+
+Both apps depend on `@cria/shared`; import its contracts/utilities by package name,
+for example `import { APP_NAME, brl } from "@cria/shared"`. Shared code is compiled
+by each app's Vite build, so no separate library publishing or JavaScript build is
+needed. App-specific styles, GPS tracking and UI stay in client. See
+[frontend/shared/README.md](frontend/shared/README.md).
+
+Production apps have independent Cloudflare Pages projects:
+`moovit-de-cria` → `moovit.joaocyrino.com` and
+`moovit-de-cria-admin` → `moovit-admin.joaocyrino.com`.
+The admin currently renders only **Hello world**, makes no API calls and has no
+administrative operations. Backend CORS continues to allow only the client origin.
 
 ## REST API
 
@@ -144,13 +172,13 @@ npx playwright install chromium webkit
 
 `npm test` covers routing/transfers, service calendars, exact/frequency schedules, after-midnight trips, money/BUC/unknown fares, GPS parser freshness, importer failure atomicity and phone stop-alert rules.
 
-Browser tests use an **explicit synthetic feed** only in disposable testing environments, and intercept external geocoding/vehicle calls. They never overwrite the installed real snapshot. See `scripts/browser.mjs`; `BASE_URL` defaults to 5193, `BROWSER=webkit` selects the Safari engine. CI browser-tests the exact Pages build against the API-only Docker image and a temporary test feed. API-origin isolation is separately tested with real HTTP requests on a private Docker network.
+Browser tests use an **explicit synthetic feed** only in disposable testing environments, and intercept external geocoding/vehicle calls. They never overwrite the installed real snapshot. See `scripts/browser.mjs`; `BASE_URL` defaults to 5193, `BROWSER=webkit` selects the Safari engine. CI browser-tests the exact client Pages build against the API-only Docker image and a temporary test feed. API-origin isolation is separately tested with real HTTP requests on a private Docker network.
 
 See [docs/deployment.md](docs/deployment.md) for the first push. Production GTFS/live feeds, precise arrival prediction, walkability and battery/background behavior must be verified on real journeys before relying on it for travel.
 
 ### Validation performed
 
-- 89 .NET tests (including partial/empty GPS refreshes, minute bootstrap/pagination, missing provider identifiers, direction/variant changes, outages/expiry, scheduled departure, arrive-by, calendar/overnight rules, Photon parsing, metro routing/fares and shared GPS provider caching), 17 frontend logic tests (phone GPS, Rio time, compact status and all-line vehicle filtering) and 18 Python tests (importer/catalog/deployment preflight) passed.
+- Backend and frontend suites cover routing, GPS, scheduling and fares. `npm run test:scripts` covers the Node.js importer, atomic snapshots, custom place catalog, deployment preflight and tooling. Browser checks use disposable fixtures.
 - The custom catalog passed 25 place-search tests and five CLI tests. Direct HTTP checks verified all four pins and local suggestions during a Photon outage; the React production build passed.
 - Chromium and WebKit passed search → route selection → boarding → transfer checks against the compiled monolith at mobile and desktop widths. Inline autocomplete, keyboard selection, invalidating edited coordinates and stale-response handling also passed in both engines.
 - The real official feed imported 7,694 stops and 15,107 timetable patterns into a 108 MiB snapshot, including inside the final Linux image with a 384 MiB importer limit.

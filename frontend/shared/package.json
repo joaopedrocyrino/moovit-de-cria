@@ -1,0 +1,30 @@
+{
+  "name": "@cria/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./api-url": "./src/api/apiUrl.ts",
+    "./types": "./src/types.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./layout/*": "./src/layout/*.tsx",
+    "./hooks/*": "./src/hooks/*.ts",
+    "./api/*": "./src/api/*.ts",
+    "./pages/*": "./src/pages/*.tsx"
+  },
+  "scripts": {
+    "build": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "@types/node": "^24.9.1",
+    "@types/react": "^19.2.0"
+  }
+}

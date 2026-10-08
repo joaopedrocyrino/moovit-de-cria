@@ -46,7 +46,7 @@ services:
     profiles: [tools]
     image: ${APP_IMAGE:?Use the release image digest}
     user: "0:0"
-    entrypoint: [python3, /app/scripts/import_gtfs.py]
+    entrypoint: [node, /app/scripts/import-gtfs.mjs]
     command:
       [--snapshot, /app/snapshot/transit.sqlite, --output, /data/transit.sqlite]
     environment:

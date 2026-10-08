@@ -10,6 +10,7 @@ concurrency:
 env:
   APP_HOSTNAME: ${{ vars.APP_HOSTNAME || 'moovit.joaocyrino.com' }}
   API_HOSTNAME: ${{ vars.API_HOSTNAME || 'moovit-api.joaocyrino.com' }}
+  ADMIN_HOSTNAME: ${{ vars.ADMIN_HOSTNAME || 'moovit-admin.joaocyrino.com' }}
 jobs:
   deployment-config:
     runs-on: ubuntu-24.04
@@ -19,6 +20,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
       - name: Validate deployment settings before building or changing the droplet
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -30,7 +34,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'moovit-de-cria' }}
-        run: python3 scripts/check-pages-config.py
+          CLOUDFLARE_ADMIN_PAGES_PROJECT: ${{ vars.CLOUDFLARE_ADMIN_PAGES_PROJECT || 'moovit-de-cria-admin' }}
+        run: node scripts/check-pages-config.mjs
   release:
     needs: deployment-config
     runs-on: ubuntu-24.04
@@ -42,6 +47,7 @@ jobs:
       image: ${{ steps.publish.outputs.image }}
       frontend-hostname: ${{ steps.publish.outputs.frontend-hostname }}
       api-hostname: ${{ steps.publish.outputs.api-hostname }}
+      admin-hostname: ${{ steps.publish.outputs.admin-hostname }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -53,17 +59,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: |
-            package-lock.json
-            frontend/package-lock.json
-      - run: npm ci && npm ci --prefix frontend
+          cache-dependency-path: package-lock.json
+      - run: npm ci
       - run: dotnet restore MoovitDeCria.slnx --locked-mode
       - run: dotnet build MoovitDeCria.slnx -c Release --no-restore
       - run: dotnet test --solution MoovitDeCria.slnx -c Release --no-build --no-restore
       - run: npm run test:web
-      - run: python3 -m unittest discover -s tests/python
-      - name: Build Pages site
-        run: VITE_API_ORIGIN="https://$API_HOSTNAME" npm run build --prefix frontend
+      - run: npm run test:scripts
+      - name: Build both Pages sites
+        run: VITE_API_ORIGIN="https://$API_HOSTNAME" npm run build:web
       - name: Build API and prepare public timetable
         env:
           GTFS_URL: ${{ vars.GTFS_URL || 'https://dados.mobilidade.rio/gtfs/schedule' }}
@@ -72,17 +76,25 @@ jobs:
           docker build --target api --build-arg PREPARE_GTFS=1 --build-arg GTFS_URL="$GTFS_URL" -t "ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_SHA" .
       - name: Browser-test the exact Pages artifact with the API image
         run: |
-          python3 tests/python/create_fixture.py --output .data/transit.sqlite
+          node tests/scripts/create-fixture.mjs --output .data/transit.sqlite
           docker compose up -d --no-build app
           npx playwright install --with-deps chromium
-          API_ORIGIN="https://$API_HOSTNAME" API_TEST_URL=http://127.0.0.1:5193 node scripts/test-pages.mjs
+          API_ORIGIN="https://$API_HOSTNAME" API_TEST_URL=http://127.0.0.1:5193 node scripts/test-pages.mjs client
+          node scripts/test-pages.mjs admin
       - name: Verify production origin isolation
-        run: python3 scripts/check-origin.py --image "$APP_IMAGE"
+        run: node scripts/check-origin.mjs --image "$APP_IMAGE"
       - name: Save tested Pages artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: moovit-pages
-          path: frontend/dist/
+          name: moovit-client-pages
+          path: frontend/client/dist/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Save tested admin Pages artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: moovit-admin-pages
+          path: frontend/admin/dist/
           if-no-files-found: error
           retention-days: 7
       - name: Publish tested API image
@@ -93,7 +105,7 @@ jobs:
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker push "$APP_IMAGE"
           image=$(docker image inspect --format '{{index .RepoDigests 0}}' "$APP_IMAGE")
-          printf 'image=%s\nfrontend-hostname=%s\napi-hostname=%s\n' "$image" "$APP_HOSTNAME" "$API_HOSTNAME" >> "$GITHUB_OUTPUT"
+          printf 'image=%s\nfrontend-hostname=%s\napi-hostname=%s\nadmin-hostname=%s\n' "$image" "$APP_HOSTNAME" "$API_HOSTNAME" "$ADMIN_HOSTNAME" >> "$GITHUB_OUTPUT"
       - if: always()
         run: docker compose down
   deploy-api:
@@ -118,20 +130,34 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 22
       - run: bash scripts/deploy-production.sh
   deploy-pages:
+    name: Deploy ${{ matrix.app }} to Cloudflare Pages
     needs: [release, deploy-api]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: client
+            artifact: moovit-client-pages
+            hostname: ${{ needs.release.outputs.frontend-hostname }}
+          - app: admin
+            artifact: moovit-admin-pages
+            hostname: ${{ needs.release.outputs.admin-hostname }}
     environment:
       name: production
-      url: https://${{ needs.release.outputs.frontend-hostname }}
+      url: https://${{ matrix.hostname }}
     steps:
       - name: Check Pages configuration
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'moovit-de-cria' }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ matrix.app == 'client' && (vars.CLOUDFLARE_PAGES_PROJECT || 'moovit-de-cria') || (vars.CLOUDFLARE_ADMIN_PAGES_PROJECT || 'moovit-de-cria-admin') }}
         run: |
           [[ -n "$CLOUDFLARE_API_TOKEN" && -n "$CLOUDFLARE_ACCOUNT_ID" ]] || { echo 'Set production secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID for Pages.' >&2; exit 1; }
           [[ "$CLOUDFLARE_PAGES_PROJECT" =~ ^[a-z0-9][a-z0-9-]*$ ]]
@@ -141,13 +167,13 @@ jobs:
           package-manager-cache: false
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          name: moovit-pages
+          name: ${{ matrix.artifact }}
           path: dist/
       - name: Publish exact tested artifact
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT || 'moovit-de-cria' }}
+          CLOUDFLARE_PAGES_PROJECT: ${{ matrix.app == 'client' && (vars.CLOUDFLARE_PAGES_PROJECT || 'moovit-de-cria') || (vars.CLOUDFLARE_ADMIN_PAGES_PROJECT || 'moovit-de-cria-admin') }}
           RELEASE_SHA: ${{ github.sha }}
         run: |
           npx --yes wrangler@4.148.0 pages deploy dist \

@@ -4,19 +4,37 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "python3 scripts/dev.py",
-    "build": "npm run build --prefix frontend && python3 scripts/dotnet.py build MoovitDeCria.slnx -c Release",
-    "test": "python3 scripts/dotnet.py build MoovitDeCria.slnx && python3 scripts/dotnet.py test --solution MoovitDeCria.slnx --no-build && npm run test:web && python3 -m unittest discover -s tests/python",
-    "test:web": "node --experimental-strip-types --test frontend/src/lib/journey.test.ts frontend/src/lib/timing.test.ts frontend/src/lib/routeVehicles.test.ts frontend/src/lib/apiUrl.test.ts",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build:web && node scripts/dotnet.mjs build MoovitDeCria.slnx -c Release",
+    "test": "node scripts/dotnet.mjs build MoovitDeCria.slnx && node scripts/dotnet.mjs test --solution MoovitDeCria.slnx --no-build && npm run test:web && npm run test:scripts",
+    "test:web": "node --experimental-strip-types --test frontend/client/src/lib/journey.test.ts frontend/client/src/lib/timing.test.ts frontend/client/src/lib/routeVehicles.test.ts frontend/shared/src/api/apiUrl.test.ts && npm run test:shared-build",
+    "test:shared-build": "node scripts/test-shared-build.mjs",
     "test:browser": "node scripts/browser.mjs && node scripts/browser-transit.mjs",
-    "data:sync": "python3 scripts/import_gtfs.py",
-    "install:web": "npm ci --prefix frontend",
-    "format": "prettier --write frontend/src frontend/index.html scripts/*.mjs README.md docs .github/workflows",
-    "places:add": "python3 scripts/places.py add",
-    "places:validate": "python3 scripts/places.py validate"
+    "data:sync": "node scripts/import-gtfs.mjs",
+    "install:web": "npm ci",
+    "format": "prettier --write frontend scripts/*.mjs README.md docs .github/workflows",
+    "places:add": "node scripts/places.mjs add",
+    "places:validate": "node scripts/places.mjs validate",
+    "build:web": "npm run build --workspace @cria/shared && npm run build --workspace @cria/client && npm run build --workspace @cria/admin",
+    "dev:client": "npm run dev --workspace @cria/client",
+    "dev:admin": "npm run dev --workspace @cria/admin",
+    "test:scripts": "node --test tests/scripts/*.test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
-    "prettier": "^3.9.9"
+    "prettier": "^3.9.9",
+    "yazl": "3.3.1"
+  },
+  "workspaces": [
+    "frontend/client",
+    "frontend/admin",
+    "frontend/shared"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "dependencies": {
+    "csv-parse": "7.0.3",
+    "yauzl": "3.4.0"
   }
 }

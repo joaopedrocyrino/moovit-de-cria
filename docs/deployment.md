@@ -1,6 +1,6 @@
 # Production: Cloudflare Pages + private Tunnel API
 
-Frontend: **https://moovit.joaocyrino.com** on Cloudflare Pages. API: **https://moovit-api.joaocyrino.com** through Cloudflare Tunnel to the shared droplet. Only pushes/merges to **main** run Actions; staging and pull requests trigger nothing.
+Client: **https://moovit.joaocyrino.com** and admin: **https://moovit-admin.joaocyrino.com** on separate Cloudflare Pages projects. API: **https://moovit-api.joaocyrino.com** through Cloudflare Tunnel to the shared droplet. Only pushes/merges to **main** run Actions; staging and pull requests trigger nothing.
 
 ## Architecture and access control
 
@@ -23,19 +23,30 @@ flowchart LR
 - The tunnel token stays in the droplet `.env`. GitHub gets a separate **Pages deployment** token and the existing SSH/GHCR credentials. Neither token enters the React bundle.
 - Tunnel connectivity is outbound; it needs TCP/UDP port 7844 egress. The droplet's existing SSH access and other apps' inbound ports stay unchanged. A host administrator with Docker access can change the configuration; this does not isolate the app from root.
 
-## 1. Create Cloudflare Pages
+## 1. Create the client and admin Cloudflare Pages projects
 
-Cloudflare DNS for `joaocyrino.com` is already active. Create a **Direct Upload** Pages project called `moovit-de-cria`, with production branch `main`. Avoid connecting Git integration: GitHub Actions controls publishing.
+Cloudflare DNS for `joaocyrino.com` is already active. Create two **Direct Upload** Pages projects with production branch `main`:
+
+| App | Pages project | Custom domain |
+| --- | --- | --- |
+| Client | `moovit-de-cria` | `moovit.joaocyrino.com` |
+| Admin | `moovit-de-cria-admin` | `moovit-admin.joaocyrino.com` |
+
+Keep the existing client Pages project if already configured. GitHub Actions controls
+publishing. Both projects must exist before pushing; deployment preflight checks them
+before building or changing the droplet. The admin is currently just a public Hello world
+page with no API calls or administrative operations.
 
 To create the project using Wrangler, run locally with the Cloudflare Account ID and a Pages API token supplied as shell environment variables (never committed):
 
 ```bash
 npx --yes wrangler@4.148.0 pages project create moovit-de-cria --production-branch=main
+npx --yes wrangler@4.148.0 pages project create moovit-de-cria-admin --production-branch=main
 ```
 
 Wrangler reads `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN`. Create the token with **Account → Cloudflare Pages → Edit**, scoped to your account. The Account ID is shown in the Cloudflare dashboard.
 
-In this Pages project's **Custom domains**, add `moovit.joaocyrino.com`. Remove the old Moovit `A`/`AAAA` records pointing at the droplet when making this cutover; let Pages create its CNAME. Do not create only a DNS CNAME without attaching the domain to Pages. If the dashboard requires an initial deployment first, finish the first Actions deployment, then attach the domain; the initial site also has a `pages.dev` URL. Only the custom frontend origin is permitted by the API.
+In each Pages project's **Custom domains**, attach its matching domain from the table above. Remove the old Moovit `A`/`AAAA` records pointing at the droplet when making this cutover; let Pages create its CNAME. Do not create only a DNS CNAME without attaching the domain to Pages. If the dashboard requires an initial deployment first, finish the first Actions deployment, then attach the domain; the initial site also has a `pages.dev` URL. Only the custom frontend origin is permitted by the API.
 
 There can be a short transition while the first Pages upload and DNS/domain certificate activation complete. Subsequent frontend deployments are published after API readiness succeeds.
 
@@ -76,7 +87,7 @@ The file must belong to your actual `DEPLOY_USER`, with mode 0600:
 chmod 600 /opt/moovit-de-cria/.env
 ```
 
-Python 3, Docker Compose v2, `flock` and `curl` must exist on the droplet. The deployment discovers the connector's private IP automatically; **do not hardcode `TRUSTED_PROXY_IP`** in `.env`. The existing `moovit-de-cria_transit_data` volume and project name are preserved.
+Docker Compose v2, `flock`, `curl` and GNU `stat` must exist on the droplet. Node.js is included in the application image for one-off imports and health checks; no host Node.js or Python installation is required. The deployment discovers the connector's private IP automatically; **do not hardcode `TRUSTED_PROXY_IP`** in `.env`. The existing `moovit-de-cria_transit_data` volume and project name are preserved.
 
 GitHub never uploads/downloads this `.env`. Retaining unrestricted SSH/Docker access means the deploy account can technically read it. The application does not receive the tunnel token; only the connector does.
 
@@ -102,7 +113,15 @@ Add these **production secrets**:
 | `CLOUDFLARE_API_TOKEN` | Pages Edit API token from step 1 |
 | `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
 
-Set `CLOUDFLARE_PAGES_PROJECT=moovit-de-cria` as a production variable (this is also the default).
+Production Pages variables (both have these defaults):
+
+| Variable | Default |
+| --- | --- |
+| `CLOUDFLARE_PAGES_PROJECT` | `moovit-de-cria` |
+| `CLOUDFLARE_ADMIN_PAGES_PROJECT` | `moovit-de-cria-admin` |
+
+The existing Pages Edit token and Account ID can deploy both projects in that account;
+no additional tunnel or droplet service is needed for the admin.
 
 Public hostname overrides must be **repository variables**, so the tested artifact and API use the same addresses:
 
@@ -110,6 +129,7 @@ Public hostname overrides must be **repository variables**, so the tested artifa
 | --- | --- |
 | `APP_HOSTNAME` | `moovit.joaocyrino.com` |
 | `API_HOSTNAME` | `moovit-api.joaocyrino.com` |
+| `ADMIN_HOSTNAME` | `moovit-admin.joaocyrino.com` |
 | `GTFS_URL` | `https://dados.mobilidade.rio/gtfs/schedule` |
 
 `DEPLOY_PATH` defaults to `/opt/moovit-de-cria` and `DEPLOY_PORT` to `22`; those can be production variables. The old `CADDY_CONTAINER` variable is no longer used by this app. Never put the tunnel token in GitHub or a `VITE_` variable.
@@ -127,17 +147,18 @@ git commit -m "Deploy frontend to Pages and API through Cloudflare Tunnel"
 git push origin main
 ```
 
-The workflow checks deployment configuration, runs backend/frontend/importer tests, builds the **API-only** image with official GTFS, builds React with the public HTTPS API origin, and browser-tests that **exact Pages artifact** with the disposable API image. Production-origin tests exercise peer rejection, header spoofing, CORS and real per-client rate limits. The fixture is not bundled as production data.
+The workflow checks deployment configuration, runs backend/frontend/importer tests, builds the **API-only** image with official GTFS, builds both React apps, and browser-tests the **exact client Pages artifact** with the disposable API image. The admin artifact is separately smoke-tested at mobile/desktop widths; it only renders Hello world and makes no API requests. Production-origin tests exercise peer rejection, header spoofing, CORS and real per-client rate limits. The fixture is not bundled as production data.
 
-It publishes the image digest and saves the tested static artifact. The droplet pulls the image, installs the snapshot, starts the connector, discovers its private IP and starts the API. Readiness checks cover both local API/tunnel and the public API **through Cloudflare**. Pages receives the saved artifact only after the API deploy succeeds. No rebuild happens in the publish job.
+It publishes the image digest and saves the two tested static artifacts. The droplet pulls the image, installs the snapshot, starts the connector, discovers its private IP and starts the API. Readiness checks cover both local API/tunnel and the public API **through Cloudflare**. Two Pages publish jobs deploy their respective saved artifacts only after the API deploy succeeds. No rebuild happens in the publish job.
 
-Rollback restores the previous image using the **new private Compose configuration**, never the old public Caddy configuration. During the first migration, an old image may lack cross-origin CORS support; a failed cutover can therefore leave the previous API private but the frontend unavailable until fixed. Once a successful Cloudflare release exists, image rollback retains that release's behavior. API and Pages are separate deployments, not an atomic cross-provider transaction; a Pages failure leaves the API deployed and the previous Pages site. Re-running that failed Pages job publishes the same tested artifact.
+Rollback restores the previous image using the **new private Compose configuration**, never the old public Caddy configuration. During the first migration, an old image may lack cross-origin CORS support; a failed cutover can therefore leave the previous API private but the frontend unavailable until fixed. Once a successful Cloudflare release exists, image rollback retains that release's behavior. API and Pages are separate deployments, not an atomic cross-provider transaction; a Pages failure leaves the API deployed and the previous version of that Pages site. Client/admin publish independently. Re-running that failed Pages job publishes the same tested artifact.
 
 Check:
 
 ```bash
 curl --fail https://moovit-api.joaocyrino.com/api/health/ready
 curl -I https://moovit.joaocyrino.com
+curl -I https://moovit-admin.joaocyrino.com
 ```
 
 Direct droplet HTTP(S) access no longer routes this API. Normal users access the public API hostname through Cloudflare. Do not close global 80/443 ports, because other shared apps still use them.
@@ -166,7 +187,7 @@ Do not paste `.env` or full `docker inspect`/`compose config` output: the connec
 
 ## Local development
 
-`npm run dev` and local `docker compose up --build` continue using Vite's `/api` proxy or the local combined container. No Cloudflare credentials are required locally. `VITE_API_ORIGIN` defaults to unset; production sets it at build time to `https://moovit-api.joaocyrino.com`. The service worker caches the local app shell/assets only, never cross-origin API/GPS responses or external map tiles.
+`npm run dev` starts .NET (5193), client (4193) and admin (4194). Client uses Vite's `/api` proxy; admin is independent. Local `docker compose up --build` still serves only client + API from the combined container; run `npm run dev:admin` separately for admin. No Cloudflare credentials are required locally. `VITE_API_ORIGIN` defaults to unset; production sets it at build time to `https://moovit-api.joaocyrino.com`. The service worker caches the local app shell/assets only, never cross-origin API/GPS responses or external map tiles.
 
 ## References
 

@@ -12,8 +12,11 @@ services:
     restart: unless-stopped
   import:
     profiles: [tools]
-    image: python:3.14-slim
-    command: [python3, /scripts/import_gtfs.py, --output, /data/transit.sqlite]
+    image: ${APP_IMAGE:-moovit-de-cria:local}
+    build: .
+    entrypoint: [node, /app/scripts/import-gtfs.mjs]
+    user: "0:0"
+    command: [--output, /data/transit.sqlite]
     environment:
       GTFS_URL: ${GTFS_URL:-https://dados.mobilidade.rio/gtfs/schedule}
-    volumes: ["./scripts:/scripts:ro", "./.data:/data"]
+    volumes: ["./.data:/data"]

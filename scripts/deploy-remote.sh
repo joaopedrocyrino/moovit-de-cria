@@ -5,19 +5,15 @@ DEPLOY_PATH=$1
 release_id=$2
 export APP_IMAGE=$3 APP_HOSTNAME=$4 API_HOSTNAME=$5
 registry_user=$6
-for binary in docker python3 flock curl; do command -v "$binary" >/dev/null; done
+for binary in docker flock curl stat; do command -v "$binary" >/dev/null; done
 exec 9>"$DEPLOY_PATH/.deploy.lock"
 flock -w 1200 9
 release="$DEPLOY_PATH/releases/$release_id"
 mkdir -p "$release"
 tar -xzf "$DEPLOY_PATH/incoming/$release_id/release.tar.gz" -C "$release"
-python3 - "$DEPLOY_PATH/.env" <<'CHECK'
-from pathlib import Path
-import os,stat,sys
-p=Path(sys.argv[1])
-if p.is_symlink() or not p.is_file():sys.exit('Create the droplet-owned .env first.')
-if p.stat().st_uid!=os.geteuid() or stat.S_IMODE(p.stat().st_mode)!=0o600:sys.exit('.env must belong to the deploy user and have mode 0600.')
-CHECK
+env_file="$DEPLOY_PATH/.env"
+[[ -f "$env_file" && ! -L "$env_file" ]] || { echo 'Create the droplet-owned .env first.' >&2; exit 1; }
+[[ "$(stat -c %u "$env_file")" == "$EUID" && "$(stat -c %a "$env_file")" == 600 ]] || { echo '.env must belong to the deploy user and have mode 0600.' >&2; exit 1; }
 registry=$(mktemp -d "$DEPLOY_PATH/.registry-XXXXXX")
 export DOCKER_CONFIG="$registry"
 trap 'rm -rf -- "$registry"' EXIT
@@ -48,7 +44,7 @@ compose --profile tools pull app import tunnel
 # Existing snapshots remain intact on an unsuccessful import. Import is a one-off job, not an idle service.
 printf 'Stage: installing GTFS snapshot prepared in GitHub Actions.\n'
 # The install copies/validates SQLite, without retaining the full timetable in
-# Python memory. Manual refresh keeps the server's configured import limit.
+# JavaScript memory. Manual refresh keeps the server's configured import limit.
 IMPORT_MEMORY_LIMIT=64m compose --profile tools run --rm --no-deps import
 printf 'Stage: Cloudflare Tunnel connector.\n'
 compose up -d --no-deps --pull never tunnel
@@ -61,7 +57,7 @@ compose up -d --no-deps --pull never app
 ready=false
 printf 'Stage: local API and tunnel readiness.\n'
 for _attempt in $(seq 1 30); do
- if compose exec -T app python3 -c 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8080/api/health/ready", timeout=3); urllib.request.urlopen("http://tunnel:2000/ready", timeout=3)' >/dev/null 2>&1; then ready=true; break; fi
+ if compose exec -T app node /app/scripts/health-check.mjs http://127.0.0.1:8080/api/health/ready http://tunnel:2000/ready >/dev/null 2>&1; then ready=true; break; fi
  sleep 2
 done
 [[ "$ready" == true ]] || { echo 'Local API/tunnel readiness failed; inspect app and tunnel logs.' >&2; false; }
