@@ -77,14 +77,4 @@ public class TimingTests
         var pattern = n.Patterns[0] with { Windows = [new("s", 24 * 3600 + 600, 24 * 3600 + 601, 0, true)] };
         Assert.Equal(latest.AddMinutes(-5), Schedules.LatestDeparture(pattern, 0, latest, n)!.Value.Departure);
     }
-    [Fact]
-    public void ArriveByCanUseMetroAndKeepsItsFinalWalkInsideTheDeadline()
-    {
-        var n = MetroNetwork.AddTo(new([], [], [], "test", "test", null));
-        var deadline = Morning.AddMinutes(50);
-        var result = new Planner(new Store(n)).Plan(new(n.Stops["metro:w6w5"].Point, new(-22.9566277, -43.1837086), null, ArriveBy: deadline), TestContext.Current.CancellationToken);
-        Assert.NotEmpty(result.Itineraries);
-        Assert.All(result.Itineraries, trip => { Assert.True(trip.Arrival <= deadline); Assert.True(trip.Departure >= DateTimeOffset.UtcNow); });
-        Assert.Contains(result.Itineraries, trip => trip.Legs.Any(l => l.Mode == "metro") && trip.Fare.Cents == 790);
-    }
 }

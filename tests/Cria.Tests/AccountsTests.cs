@@ -12,7 +12,7 @@ public sealed class AccountsTests : IDisposable
     private readonly PostgresFixture fixture = new();
     private readonly Clock clock = new();
     private readonly Accounts accounts;
-    private static readonly Point Home = new(-22.9566277, -43.1837086);
+    private static readonly Point Home = new(-22.92, -43.21);
 
     public AccountsTests()
     {
@@ -48,7 +48,7 @@ public sealed class AccountsTests : IDisposable
     public void AddressesKeepExactCoordinatesAndEnforceOwnership()
     {
         var first = User(); var second = User("other@example.test");
-        var home = accounts.SaveAddress(first.Id, null, "Casa", "Rua Oliveira Fausto, 28", Home);
+        var home = accounts.SaveAddress(first.Id, null, "Casa", "Address", Home);
         Assert.Equal(Home, Assert.Single(accounts.GetData(first.Id).Addresses).Point);
         Assert.Empty(accounts.GetData(second.Id).Addresses);
         Error(404, () => accounts.SaveAddress(second.Id, home.Id, "Stolen", "Somewhere", Home));

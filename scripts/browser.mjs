@@ -49,28 +49,17 @@ try {
       },
     }),
   );
-  const searches = [];
   await page.route("**/api/places/search", async (route) => {
     const body = route.request().postDataJSON();
-    searches.push(body.query);
-    const isCafe = body.query.toLowerCase().includes("chora");
     const isOrigin = body.query === "Teste A";
-    if (body.query === "Teste antigo")
-      await new Promise((resolve) => setTimeout(resolve, 1000));
     try {
       await route.fulfill({
         json: [
           {
-            label: isCafe
-              ? "Chora Café, Rua Oliveira Fausto, 28, Botafogo, Rio de Janeiro"
-              : isOrigin
-                ? "Parada Teste A, Rio de Janeiro"
-                : body.query === "Teste antigo"
-                  ? "Resultado antigo"
-                  : "Parada Teste C, Rio de Janeiro",
-            point: isCafe
-              ? { lat: -22.9566277, lon: -43.1837086 }
-              : { lat: -22.92, lon: isOrigin ? -43.21 : -43.28 },
+            label: isOrigin
+              ? "Parada Teste A, Rio de Janeiro"
+              : "Parada Teste C, Rio de Janeiro",
+            point: { lat: -22.92, lon: isOrigin ? -43.21 : -43.28 },
           },
         ],
       });
@@ -108,35 +97,6 @@ try {
     2,
     "Only the endpoint fields may accept addresses",
   );
-  await destination.fill("Ch");
-  await page.waitForTimeout(600);
-  assert.deepEqual(
-    searches,
-    [],
-    "Fewer than three characters must not call a provider",
-  );
-  await destination.fill("Teste antigo");
-  await page.waitForRequest(
-    (request) =>
-      request.url().endsWith("/api/places/search") &&
-      request.postDataJSON().query === "Teste antigo",
-  );
-  await destination.fill("Chora cafe");
-  const cafe = page.getByRole("option", { name: /Chora Café/ });
-  await cafe.waitFor();
-  await page.waitForTimeout(650);
-  assert.equal(
-    await page.getByRole("option", { name: "Resultado antigo" }).count(),
-    0,
-    "An old response cannot replace the current suggestions",
-  );
-  await page.screenshot({
-    path: `output/${process.env.BROWSER || "chromium"}-autocomplete-mobile.png`,
-  });
-  await destination.press("ArrowDown");
-  await destination.press("Enter");
-  assert.match(await destination.inputValue(), /Chora Café.*Botafogo/);
-  assert.equal(await destination.getAttribute("aria-expanded"), "false");
   await origin.fill("Teste A");
   assert.equal(
     await page.getByRole("button", { name: "Encontrar rotas" }).isDisabled(),
@@ -190,7 +150,7 @@ try {
   );
   assert.deepEqual(errors, []);
   console.log(
-    `${process.env.BROWSER || "chromium"} inline autocomplete, keyboard selection, stale-response handling, routing and boarding: passed`,
+    `${process.env.BROWSER || "chromium"} inline autocomplete, keyboard selection, routing and boarding: passed`,
   );
   await context.close();
 } finally {

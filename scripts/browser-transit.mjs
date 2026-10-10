@@ -100,12 +100,7 @@ for (const [name, engine] of engines) {
     );
     await page.route("**/api/places/search", (r) =>
       r.fulfill({
-        json: [
-          {
-            label: "Chora Café, Botafogo",
-            point: { lat: -22.9566277, lon: -43.1837086 },
-          },
-        ],
+        json: [{ label: d.name, point: d.point }],
       }),
     );
     await page.route("**/api/plans", (r) => {
@@ -168,8 +163,8 @@ for (const [name, engine] of engines) {
         .getAttribute("aria-expanded"),
       "false",
     );
-    await destination.fill("Chora cafe");
-    await page.getByRole("option", { name: /Chora Café/ }).click();
+    await destination.fill(d.name);
+    await page.getByRole("option", { name: d.name, exact: true }).click();
     await page.getByRole("button", { name: "Encontrar rotas" }).click();
     await page.locator(".route-card").first().waitFor();
     assert.equal(
@@ -235,9 +230,9 @@ for (const [name, engine] of engines) {
       await page.getByRole("combobox", { name: "Buscar origem" }).count(),
       0,
     );
-    assert.match(
+    assert.equal(
       await destination.inputValue(),
-      /Chora Café/,
+      d.name,
       "Collapsing preserves the selected destination",
     );
     await dragHandle(-100);
