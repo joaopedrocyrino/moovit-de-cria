@@ -4,6 +4,9 @@ services:
     image: ${APP_IMAGE:?Use the release image digest}
     environment:
       ASPNETCORE_ENVIRONMENT: Production
+      Database__Host: database
+      Database__Port: "5432"
+      Database__Password: ${DATABASE_PASSWORD:?Run npm run db:up locally or set DATABASE_PASSWORD on the droplet}
       Transit__Database: /data/transit.sqlite
       Geocoding__AutocompleteUrl: ${AUTOCOMPLETE_URL:-https://photon.komoot.io}
       Transit__VehiclesUrl: ${VEHICLES_URL:-https://its.mobilidade.rio/v1/geolocalizacao/veiculos}
@@ -14,14 +17,16 @@ services:
       Security__FrontendOrigin: https://${APP_HOSTNAME:-moovit.joaocyrino.com}
       AllowedHosts: ${API_HOSTNAME:-moovit-api.joaocyrino.com};localhost;127.0.0.1
       DOTNET_gcServer: "0"
-    volumes: ["transit_data:/data:ro"]
-    networks: [origin, outbound]
+    volumes: ["transit_data:/data:ro", "accounts_data:/accounts"]
+    networks: [origin, outbound, database]
     expose: ["8080"]
     mem_limit: ${APP_MEMORY_LIMIT:-512m}
     read_only: true
     tmpfs: ["/tmp:size=67108864,mode=1777"]
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    depends_on:
+      database: { condition: service_healthy }
     restart: unless-stopped
     logging:
       driver: json-file
@@ -42,6 +47,29 @@ services:
     logging:
       driver: json-file
       options: { max-size: "10m", max-file: "3" }
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: moovit
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-app.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U postgres -d moovit"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: ${DATABASE_MEMORY_LIMIT:-192m}
+    shm_size: 32m
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=40]
+    restart: unless-stopped
+    networks: [database]
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
   import:
     profiles: [tools]
     image: ${APP_IMAGE:?Use the release image digest}
@@ -57,7 +85,11 @@ services:
 networks:
   origin:
     internal: true
+  database:
+    internal: true
   outbound: {}
   tunnel_outbound: {}
 volumes:
   transit_data:
+  accounts_data:
+  postgres_data:

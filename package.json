@@ -6,10 +6,11 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "npm run build:web && node scripts/dotnet.mjs build MoovitDeCria.slnx -c Release",
-    "test": "node scripts/dotnet.mjs build MoovitDeCria.slnx && node scripts/dotnet.mjs test --solution MoovitDeCria.slnx --no-build && npm run test:web && npm run test:scripts",
-    "test:web": "node --experimental-strip-types --test frontend/client/src/lib/journey.test.ts frontend/client/src/lib/timing.test.ts frontend/client/src/lib/routeVehicles.test.ts frontend/shared/src/api/apiUrl.test.ts && npm run test:shared-build",
+    "test": "node scripts/database.mjs && node scripts/dotnet.mjs build MoovitDeCria.slnx && node scripts/dotnet.mjs test --solution MoovitDeCria.slnx --no-build && npm run test:web && npm run test:scripts",
+    "test:web": "node --experimental-strip-types --test frontend/client/src/lib/journey.test.ts frontend/client/src/lib/timing.test.ts frontend/client/src/lib/routeVehicles.test.ts frontend/client/src/lib/savedPlaces.test.ts frontend/client/src/lib/guestSaved.test.ts frontend/client/src/lib/theme.test.mjs frontend/shared/src/api/apiUrl.test.ts && npm run test:shared-build",
     "test:shared-build": "node scripts/test-shared-build.mjs",
-    "test:browser": "node scripts/browser.mjs && node scripts/browser-transit.mjs",
+    "test:browser": "node scripts/browser.mjs && node scripts/browser-transit.mjs && node scripts/browser-accounts.mjs && node scripts/browser-preferences.mjs",
+    "test:accounts": "node scripts/test-accounts.mjs",
     "data:sync": "node scripts/import-gtfs.mjs",
     "install:web": "npm ci",
     "format": "prettier --write frontend scripts/*.mjs README.md docs .github/workflows",
@@ -18,7 +19,9 @@
     "build:web": "npm run build --workspace @cria/shared && npm run build --workspace @cria/client && npm run build --workspace @cria/admin",
     "dev:client": "npm run dev --workspace @cria/client",
     "dev:admin": "npm run dev --workspace @cria/admin",
-    "test:scripts": "node --test tests/scripts/*.test.mjs"
+    "test:scripts": "node --test tests/scripts/*.test.mjs",
+    "analytics:report": "node scripts/analytics-report.mjs",
+    "db:up": "node scripts/database.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -35,6 +38,7 @@
   },
   "dependencies": {
     "csv-parse": "7.0.3",
-    "yauzl": "3.4.0"
+    "yauzl": "3.4.0",
+    "pg": "8.16.3"
   }
 }

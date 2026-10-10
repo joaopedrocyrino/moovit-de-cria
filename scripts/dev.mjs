@@ -1,4 +1,6 @@
+import { setupDatabase } from "./database.mjs";
 import { existsSync } from "node:fs";
+import { createServer } from "node:net";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import {
@@ -17,6 +19,10 @@ export async function main() {
     ASPNETCORE_ENVIRONMENT: "Development",
     ASPNETCORE_URLS: "http://127.0.0.1:" + (env.API_PORT || "5193"),
     Transit__Database: path.join(ROOT, ".data/transit.sqlite"),
+    Accounts__Keys: path.resolve(
+      ROOT,
+      env.Accounts__Keys || ".data/accounts/keys",
+    ),
     DOTNET_WATCH_SUPPRESS_BROWSER_REFRESH: "1",
     DOTNET_WATCH_SUPPRESS_STATIC_FILE_HANDLING: "1",
   });
@@ -28,6 +34,28 @@ export async function main() {
   ])
     if (env[setting] !== undefined && env[key] === undefined)
       env[key] = env[setting];
+  // Check before starting Vite: dotnet watch stays alive after a bind failure.
+  for (const [setting, fallback, host] of [
+    ["API_PORT", 5193, "127.0.0.1"],
+    ["WEB_PORT", 4193, "0.0.0.0"],
+    ["ADMIN_WEB_PORT", 4194, "0.0.0.0"],
+  ]) {
+    const port = Number(env[setting] || fallback);
+    await new Promise((resolve, reject) => {
+      const server = createServer();
+      server.once("error", (error) =>
+        reject(
+          new Error(
+            error.code === "EADDRINUSE"
+              ? `Port ${port} is already in use. Stop the previous development run (Ctrl+C), or change ${setting} in .env. Find the listener: lsof -nP -iTCP:${port} -sTCP:LISTEN.`
+              : error.message,
+          ),
+        ),
+      );
+      server.listen({ port, host }, () => server.close(resolve));
+    });
+  }
+  Object.assign(env, await setupDatabase(env));
   const children = [];
   let stopping = false;
   function stop(signal, status) {

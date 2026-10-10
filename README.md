@@ -6,6 +6,7 @@ A mobile-first Rio de Janeiro transit web app: no advertisements or paid GPS fea
 
 - Map centered on your position after granting browser permission, with an accuracy circle and manual recentering.
 - Destination search expands an editable origin above it; origin/destination swapping, direct editable fields and debounced place/address suggestions.
+- Optional email/password accounts, private saved places with aliases (Casa, Trabalho…), exact-coordinate origin/destination shortcuts, and favorite bus/BRT/metro lines. Route planning remains available to guests.
 - Up to eight bus/BRT/metro alternatives, sorted by estimated arrival: transfers, walking time, departure/arrival times and BRL fare estimates.
 - Route shapes and stops from the official GTFS; server-side live vehicle positions from the current SMTR ITS gateway. Select a specific vehicle on the map or list.
 - Explicit “Já embarquei” enables high-accuracy phone GPS, stop progress, vibration and an optional notification before alighting. Confirm alighting to move to the next connection.
@@ -24,7 +25,7 @@ The current phone implementation tracks while the app is active. **Background GP
 
 ## Run locally
 
-Requirements: .NET 10 SDK and Node 22.18+. All project tooling uses Node.js; Python is not required. Native scripts also detect the standard macOS/Linux SDK locations when npm cannot find a shell alias.
+Requirements: .NET 10 SDK, Node 22.18+, and Docker for local PostgreSQL. All project tooling uses Node.js; Python is not required. Native scripts also detect the standard macOS/Linux SDK locations when npm cannot find a shell alias.
 
 Scripts are plain ESM (`scripts/*.mjs`) and use Node's process/file APIs. The GTFS
 importer uses built-in `node:sqlite`, streaming `csv-parse` and `yauzl`; fixtures
@@ -67,7 +68,7 @@ docker compose --profile tools run --build --rm import
 docker compose up -d --build app
 ```
 
-The importer is a one-off job. No additional PostgreSQL/Redis/antivirus service is needed: the app has no accounts or personal trip records, and the timetable is a replaceable read-only SQLite artifact.
+The importer is a one-off job. PostgreSQL 17 stores accounts, sessions, saved data and analytics in `postgres_data`; persistent cookie keys stay in `accounts_data`. Timetable replacement never touches either volume. Set `DATABASE_PASSWORD` and `POSTGRES_ADMIN_PASSWORD` in the VPS `.env` before deployment; local `npm run dev` starts PostgreSQL and generates local credentials automatically. Back up personal account data; the transit snapshot can be rebuilt. [Account guide](docs/accounts.md).
 
 Production images are built in GitHub Actions with `PREPARE_GTFS=1`. The runner downloads and compiles the public Rio GTFS into `/app/snapshot/transit.sqlite`. Deployment installs that prepared snapshot into the persistent volume with bounded copying, SQLite validation and atomic replacement; it does not process the full CSV feed on the shared droplet. Snapshot installation rejects corrupt, expired or mismatched-source data and preserves the previous file on failure. Local Docker builds retain the existing host-volume/import flow.
 
@@ -78,7 +79,7 @@ The default public GTFS needs no new settings. For a different public feed, set 
 ```text
 src/Cria.Domain          Coordinates, services, routes, timetables, trips, fares
 src/Cria.Application     Route search, calendars/frequencies, fare calculation, ports
-src/Cria.Infrastructure  SQLite snapshot reader, bundled metro graph, SMTR GPS, rate-limited geocoding
+src/Cria.Infrastructure  SQLite timetable reader, account store, metro graph, SMTR GPS, geocoding
 src/Cria.Web             REST, validation/error responses, limits, React hosting
 frontend/client         Existing map app: components, CSS and journey logic
 frontend/admin          Minimal React/Vite admin app, currently Hello world
@@ -156,10 +157,11 @@ Photon can index them. No extra service or public write endpoint is required.
 ## Privacy, security and third-party services
 
 - Phone tracking stays in browser memory. Coordinates sent for planning/reverse geocoding are not stored as user history, and default server logging omits request bodies.
+- Account storage persists only the name/email, password hash, sessions and places/lines a user explicitly saves. Saved addresses include their precise coordinates. Private data is accessed through authenticated endpoints, kept out of browser persistent storage, and cleared from the query cache on logout/account switches. Users can change passwords or delete their account and saved data.
 - Public map tiles receive viewport requests; place/address autocomplete reaches Photon and reverse GPS lookup reaches Nominatim through the API. These providers have their own privacy policies. Install an appropriate provider/self-hosted service before scaling beyond moderate use.
 - The curated local catalog complements Photon autocomplete with a 450 ms client debounce, minimum three characters, cancellable requests, cache and Rio bounding-box/location bias. OpenStreetMap business-name coverage includes the verified Chora Café in Botafogo. Public demo usage must stay moderate; `AUTOCOMPLETE_URL` can point to your own Photon instance or a compatible provider. Nominatim is used only for one-off reverse GPS lookup, never keystroke autocomplete. Both use an identifying User-Agent, server cache and shared throttle.
 - OpenStreetMap attribution stays visible. Tile URL is configurable through `Map__TilesUrl`; the service worker does not cache/prefetch external tiles or cache GPS/API responses.
-- Planning concurrency capped; per-client API rate limit using trusted Cloudflare headers; direct API access blocked before header forwarding. Connector IP discovered at deployment; exact frontend CORS origin. No uploads, public admin or write-to-database API.
+- Planning concurrency capped; per-client API/authentication rate limits using trusted Cloudflare headers; direct API access blocked before header forwarding. Connector IP discovered at deployment; credentialed CORS permits the exact client origin. Account writes require a CSRF token and enforce ownership. No uploads or public administrative endpoints.
 - Server `.env` belongs to the deploy user, mode 0600. SSH/GHCR credentials live in Actions secrets; deployment scripts never transfer the server file.
 
 ## Test
@@ -167,10 +169,11 @@ Photon can index them. No extra service or public write endpoint is required.
 ```bash
 npm test
 npm run build
+npm run test:accounts
 npx playwright install chromium webkit
 ```
 
-`npm test` covers routing/transfers, service calendars, exact/frequency schedules, after-midnight trips, money/BUC/unknown fares, GPS parser freshness, importer failure atomicity and phone stop-alert rules.
+`npm test` covers routing/transfers, calendars, schedules, money, GPS, importer atomicity and account storage/ownership/session rules. `npm run test:accounts` starts an isolated API with disposable databases and verifies real cookies, CSRF, ownership, password/logout revocation, deletion and persistence across restart. `ACCOUNTS_BROWSER=1 npm run test:accounts` also exercises routing, account, guest/theme/consent and location UI against that disposable server; install Playwright first. No local account/timetable database is changed.
 
 Browser tests use an **explicit synthetic feed** only in disposable testing environments, and intercept external geocoding/vehicle calls. They never overwrite the installed real snapshot. See `scripts/browser.mjs`; `BASE_URL` defaults to 5193, `BROWSER=webkit` selects the Safari engine. CI browser-tests the exact client Pages build against the API-only Docker image and a temporary test feed. API-origin isolation is separately tested with real HTTP requests on a private Docker network.
 
@@ -200,3 +203,19 @@ Cloudflare split-deployment changes are tested locally; account/DNS setup and th
 Live-bus alternatives share a 20-second provider snapshot **per public line**, then apply the selected GTFS variant/direction. The response/UI distinguishes the entire line fleet from vehicles confirmed for the boarding direction. Missing directions are inferred only from an unambiguous exact GTFS shape; unresolved entries are counted separately and never presented as confirmed boarding options. Positions older than 180 seconds remain excluded, including when reading a cached snapshot. Different directions/variants legitimately have different eligible counts; each route card shows its headsign.
 
 `npm run test:browser` also checks scheduled-time payloads, mobile drag/collapse, shared line snapshots, all-line colors, direction filtering, and a bus → BRT → metro boarding flow. Set `BROWSER=webkit` for Safari’s engine; `BROWSER=all node scripts/browser-transit.mjs` checks the new transit UI in both Chromium and WebKit. `MetroAndVehiclesTests` covers station graph integrity, mixed routing, Sunday/holiday hours, internal-transfer fares and provider-cache scope. The browser requests the complete line snapshot once; matching vehicles are derived from that same response for every alternative. The per-line snapshot rolls over fresh reports instead of replacing the fleet with each partial minute batch. The optional `routeId`/`direction` API filters remain available.
+
+## Themes, guest shortcuts and usage reviews
+
+- Light/dark themes follow the system initially. Use the header toggle to save a
+  preference, or restore “Seguir sistema” under About → Appearance.
+- Guests can save aliased places and bus/BRT/metro favorites in localStorage. These
+  remain separate from account favorites and return after logout.
+- First-party, consent-controlled analytics records useful actions, planning/boarding
+  funnels, GPS/API failures and performance. Analytics uses PostgreSQL and JSONB in the application
+  file in the accounts volume, with 90-day retention and a private aggregate export.
+  See [event catalog and reporting](docs/analytics.md).
+- GPS permission is requested directly on a tap, without depending on Safari's
+  Permissions API. A quick fix can be refined with high accuracy; failures and a
+  missing callback show status even with the phone panel collapsed. The production
+  site is HTTPS and allows geolocation in its Permissions-Policy. A physical iPhone
+  test remains necessary after deployment; browser permission/OS settings still apply.

@@ -1,11 +1,16 @@
 using System.Net;
 using System.Threading.RateLimiting;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Cria.Domain;
 using Cria.Application;
 using Cria.Infrastructure;
+using Cria.Web;
+
 var builder = WebApplication.CreateBuilder(args);
+builder.AddAccounts();
+builder.AddAnalytics();
+
 builder.Services.AddMemoryCache(o => o.ExpirationScanFrequency = TimeSpan.FromMinutes(2));
 builder.Services.AddHttpClient("external", c => { c.Timeout = TimeSpan.FromSeconds(15); c.MaxResponseContentBufferSize = 16 * 1024 * 1024; }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AutomaticDecompression = DecompressionMethods.All });
 builder.Services.AddSingleton<ITransitStore, TransitStore>();
@@ -13,22 +18,33 @@ builder.Services.AddSingleton<IVehicles, VehicleFeed>();
 builder.Services.AddSingleton(_ => LocalPlaces.LoadBundled());
 builder.Services.AddSingleton<IPlaces, Places>();
 builder.Services.AddSingleton<Planner>();
+
 CloudflareOriginSecurity? originSecurity = null;
+
 if (!builder.Environment.IsDevelopment())
 {
     originSecurity = new CloudflareOriginSecurity(builder.Configuration["Security:TrustedProxyIp"], builder.Configuration["Security:FrontendOrigin"]);
     builder.Services.Configure<ForwardedHeadersOptions>(originSecurity.ConfigureForwarding);
     builder.Services.AddCors(options => options.AddDefaultPolicy(policy => policy
-        .WithOrigins(originSecurity.FrontendOrigin).WithMethods("GET", "POST").AllowAnyHeader()));
+        .WithOrigins(originSecurity.FrontendOrigin).WithMethods("GET", "POST", "PUT", "DELETE").AllowAnyHeader().AllowCredentials()));
 }
+
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = 429;
     o.OnRejected = (ctx, ct) => { ctx.HttpContext.Response.Headers.RetryAfter = "60"; return new(ctx.HttpContext.Response.WriteAsJsonAsync(new { message = "Muitas requisições. Aguarde um minuto." }, ct)); };
-    o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx => RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx => !ctx.Request.Path.StartsWithSegments("/api") ? RateLimitPartition.GetNoLimiter("static") : RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = 100, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+    o.AddPolicy("analytics", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
     o.AddConcurrencyLimiter("plans", p => { p.PermitLimit = 2; p.QueueLimit = 0; });
+    o.AddPolicy("account-auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions { PermitLimit = 8, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
+
 var app = builder.Build();
+
 app.Use(async (context, next) =>
 {
     context.Response.Headers.XContentTypeOptions = "nosniff";
@@ -44,6 +60,7 @@ app.Use(async (context, next) =>
     catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) { }
     catch (Exception) { context.Response.StatusCode = 500; await context.Response.WriteAsJsonAsync(new { message = "Não foi possível completar a operação." }); }
 });
+
 if (originSecurity is not null)
 {
     app.Use((context, next) => originSecurity.Enforce(context, next));
@@ -51,6 +68,10 @@ if (originSecurity is not null)
     app.UseCors();
 }
 app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+app.MapAccounts();
+app.MapAnalytics();
 app.MapGet("/api/health/live", () => Results.Ok(new { status = "live" }));
 app.MapGet("/api/health/ready", (ITransitStore store) => { store.Get(); return Results.Ok(new { status = "ready" }); });
 app.MapGet("/api/config", (ITransitStore store) =>

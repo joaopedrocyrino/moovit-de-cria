@@ -1,6 +1,6 @@
 .route-list {
   padding: 18px 22px;
-  background: #f6f7f1;
+  background: var(--surface-muted, #f6f7f1);
 }
 .section-label {
   display: flex;
@@ -15,14 +15,14 @@
 }
 .section-label > span {
   font-size: 11px;
-  color: #8a9286;
+  color: var(--text-muted, #8a9286);
 }
 .route-card {
   display: block;
   width: 100%;
   text-align: left;
-  background: #fff;
-  border: 1px solid #e4e9dd;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e4e9dd);
   border-radius: 17px;
   padding: 16px;
   margin-bottom: 10px;
@@ -31,12 +31,12 @@
     box-shadow 0.15s;
 }
 .route-card.selected {
-  border: 2px solid #23604b;
+  border: 2px solid var(--border, #23604b);
   padding: 15px;
-  box-shadow: 0 4px 17px #16493212;
+  box-shadow: 0 4px 17px var(--shadow, #16493212);
 }
 .route-card:hover {
-  border-color: #50866b;
+  border-color: var(--border, #50866b);
 }
 .route-top {
   display: flex;
@@ -65,27 +65,27 @@
 .route-badges > span {
   padding: 4px 7px;
   font-size: 9px;
-  background: #eff2e9;
+  background: var(--surface-muted, #eff2e9);
   border-radius: 5px;
 }
 .route-badges .best {
-  background: #edf6cc;
-  color: #3d651f;
+  background: var(--surface-accent, #edf6cc);
+  color: var(--text-heading, #3d651f);
 }
 .route-chain {
   display: flex;
   align-items: center;
   gap: 7px;
   flex-wrap: wrap;
-  color: #809076;
+  color: var(--text-muted, #809076);
 }
 .line-tag {
   display: flex;
   align-items: center;
   gap: 5px;
-  background: #e9f1e6;
+  background: var(--surface-muted, #e9f1e6);
   border-radius: 7px;
-  color: #285b3d;
+  color: var(--text-heading, #285b3d);
   padding: 5px 8px;
   font-size: 12px;
   font-weight: 700;
@@ -95,7 +95,7 @@
   justify-content: space-between;
   margin-top: 13px;
   font-size: 11px;
-  color: #8b9587;
+  color: var(--text-muted, #8b9587);
 }
 .route-bottom > span:first-child {
   display: flex;
@@ -105,14 +105,37 @@
 .empty {
   font-size: 13px;
   line-height: 1.6;
-  color: #707d6b;
+  color: var(--text-muted, #707d6b);
 }
 
 .route-directions {
   display: grid;
   gap: 4px;
   margin-top: 10px;
-  color: #61715e;
+  color: var(--accent-text, #61715e);
   font-size: 11px;
   line-height: 1.4;
+}
+.route-card-wrap {
+  margin-bottom: 13px;
+}
+.route-card-wrap .route-card {
+  margin-bottom: 0;
+}
+.route-favorite-actions {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  padding: 8px 4px 0;
+}
+.route-favorite-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 7px;
+  padding: 5px 7px;
+  background: var(--surface-muted, #ebf0e3);
+  color: var(--text-muted, #66874f);
+  font-size: 9px;
 }

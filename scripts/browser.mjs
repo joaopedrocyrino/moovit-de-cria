@@ -1,4 +1,4 @@
-import { connectTestApi } from "./browser-api.mjs";
+import { connectTestSite } from "./browser-api.mjs";
 import { chromium, webkit } from "@playwright/test";
 import assert from "node:assert/strict";
 import { mkdir } from "node:fs/promises";
@@ -37,7 +37,7 @@ try {
     permissions: ["geolocation"],
   });
   const page = await context.newPage();
-  await connectTestApi(page);
+  const site = await connectTestSite(page);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   // External providers are replaced only in this test; the app/API router stays real.
@@ -90,7 +90,9 @@ try {
   );
   await page.route("https://tile.openstreetmap.org/**", (r) => r.abort());
   // Blocking the service worker keeps external-provider interception deterministic in WebKit.
-  await page.goto(base);
+  await page.goto(site);
+  await page.getByRole("button", { name: "Recusar análises" }).click();
+  await page.locator(".privacy-panel").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: "Abrir detalhes" }).click();
   await page.getByRole("heading", { name: "Partiu, cria?" }).waitFor();
   page.on("requestfailed", (r) => {

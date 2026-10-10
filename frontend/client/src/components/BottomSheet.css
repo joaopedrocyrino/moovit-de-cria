@@ -7,9 +7,9 @@
   display: flex;
   flex-direction: column;
   max-height: calc(100dvh - 86px);
-  background: #fff;
+  background: var(--surface, #fff);
   border-radius: 26px 26px 0 0;
-  box-shadow: 0 -5px 40px #263f2e15;
+  box-shadow: 0 -5px 40px var(--shadow, #263f2e15);
   padding-bottom: env(safe-area-inset-bottom);
   transition: transform 180ms ease;
 }
@@ -27,7 +27,7 @@
   width: 100%;
   border: 0;
   border-radius: 26px 26px 0 0;
-  background: #fff;
+  background: var(--surface, #fff);
   touch-action: none;
   cursor: grab;
 }
@@ -37,7 +37,7 @@
 .sheet-handle span {
   width: 40px;
   height: 4px;
-  background: #ccd6c8;
+  background: var(--surface-subtle, #ccd6c8);
   border-radius: 4px;
 }
 .bottom-sheet .panel-scroll {
@@ -62,7 +62,7 @@
     height: auto;
     max-height: calc(100dvh - 130px);
     border-radius: 22px;
-    box-shadow: 0 6px 36px #1d3d241a;
+    box-shadow: 0 6px 36px var(--shadow, #1d3d241a);
   }
 }
 @media (prefers-reduced-motion: reduce) {

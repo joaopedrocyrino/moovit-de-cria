@@ -20,6 +20,11 @@
           "SQLitePCLRaw.core": "2.1.12"
         }
       },
+      "Npgsql": {
+        "type": "Transitive",
+        "resolved": "10.0.3",
+        "contentHash": "7nb5YzXuvWWJxB0J8DiyL3we+X4FOctZrt0fIBnucOIaIevFEEwGQVZKtiu9olXdlNAK1eNgqSral6r/jlhI4w=="
+      },
       "SQLitePCLRaw.bundle_e_sqlite3": {
         "type": "Transitive",
         "resolved": "2.1.12",
@@ -60,7 +65,8 @@
         "type": "Project",
         "dependencies": {
           "Cria.Application": "[1.0.0, )",
-          "Microsoft.Data.Sqlite": "[10.0.12, )"
+          "Microsoft.Data.Sqlite": "[10.0.12, )",
+          "Npgsql": "[10.0.3, )"
         }
       }
     }

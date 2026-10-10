@@ -30,7 +30,7 @@ incoming="${RELEASE_SHA}-${GITHUB_RUN_ID:-0}-${GITHUB_RUN_ATTEMPT:-0}"
 remote_dir="$DEPLOY_PATH/incoming/$incoming"
 
 # Configuration and provisioning code only: no .env or source credentials.
-tar -czf "$work/release.tar.gz" docker-compose.prod.yml scripts/refresh-data.sh
+tar -czf "$work/release.tar.gz" docker-compose.prod.yml scripts/refresh-data.sh docker/postgres-init.sql
 ssh "${ssh_options[@]}" -p "$DEPLOY_PORT" "$destination" "umask 077; mkdir -p '$remote_dir'"
 scp "${ssh_options[@]}" -P "$DEPLOY_PORT" "$work/release.tar.gz" "$destination:$remote_dir/release.tar.gz"
 

@@ -1,3 +1,4 @@
+import { track } from "../lib/analytics";
 import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -193,6 +194,7 @@ export default function MapView({
           title="Minha localização"
           aria-label="Minha localização"
           onClick={() => {
+            track("map_action", { control: "locate" });
             setFollow(true);
             locate();
           }}
@@ -201,13 +203,19 @@ export default function MapView({
         </button>
         <button
           aria-label="Aumentar zoom"
-          onClick={() => map.current?.zoomIn()}
+          onClick={() => {
+            track("map_action", { control: "zoom_in" });
+            map.current?.zoomIn();
+          }}
         >
           <Plus size={21} />
         </button>
         <button
           aria-label="Diminuir zoom"
-          onClick={() => map.current?.zoomOut()}
+          onClick={() => {
+            track("map_action", { control: "zoom_out" });
+            map.current?.zoomOut();
+          }}
         >
           <Minus size={21} />
         </button>

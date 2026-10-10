@@ -1,8 +1,14 @@
 import { spawn } from "node:child_process";
-import { ROOT, dotnetEnvironment, isMain, runCli } from "./lib/runtime.mjs";
+import {
+  ROOT,
+  loadEnvironment,
+  dotnetEnvironment,
+  isMain,
+  runCli,
+} from "./lib/runtime.mjs";
 
 export async function main(args = process.argv.slice(2)) {
-  const { executable, env } = dotnetEnvironment();
+  const { executable, env } = dotnetEnvironment(loadEnvironment());
   const child = spawn(executable, args, { cwd: ROOT, env, stdio: "inherit" });
   const forward = (signal) => child.kill(signal);
   const interrupt = () => forward("SIGINT");

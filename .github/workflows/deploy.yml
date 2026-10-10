@@ -40,6 +40,23 @@ jobs:
     needs: deployment-config
     runs-on: ubuntu-24.04
     timeout-minutes: 35
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: moovit
+          POSTGRES_PASSWORD: ci-disposable-only
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U postgres -d moovit" --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      TEST_DATABASE_CONNECTION_STRING: Host=127.0.0.1;Port=5432;Database=moovit;Username=postgres;Password=ci-disposable-only
+      PGHOST: 127.0.0.1
+      PGPORT: "5432"
+      PGDATABASE: moovit
+      PGUSER: postgres
+      PGPASSWORD: ci-disposable-only
+      DATABASE_PASSWORD: ci-disposable-app-only
+      POSTGRES_ADMIN_PASSWORD: ci-disposable-only
     permissions:
       contents: read
       packages: write
@@ -64,10 +81,11 @@ jobs:
       - run: dotnet restore MoovitDeCria.slnx --locked-mode
       - run: dotnet build MoovitDeCria.slnx -c Release --no-restore
       - run: dotnet test --solution MoovitDeCria.slnx -c Release --no-build --no-restore
+      - run: DOTNET_CONFIGURATION=Release npm run test:accounts
       - run: npm run test:web
       - run: npm run test:scripts
       - name: Build both Pages sites
-        run: VITE_API_ORIGIN="https://$API_HOSTNAME" npm run build:web
+        run: VITE_RELEASE="$GITHUB_SHA" VITE_API_ORIGIN="https://$API_HOSTNAME" npm run build:web
       - name: Build API and prepare public timetable
         env:
           GTFS_URL: ${{ vars.GTFS_URL || 'https://dados.mobilidade.rio/gtfs/schedule' }}

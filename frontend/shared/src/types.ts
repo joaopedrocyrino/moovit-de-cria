@@ -38,7 +38,7 @@ export type Plan = {
 export type Place = {
   label: string;
   point: Point;
-  source?: "catalog" | "photon" | "nominatim";
+  source?: "catalog" | "photon" | "nominatim" | "saved";
 };
 export type Vehicle = {
   id: string;
@@ -66,3 +66,15 @@ export type Config = {
   tilesUrl: string;
   importedAt: string | null;
 };
+
+export type AccountUser = { id: string; name: string; email: string };
+export type AccountSession = { user: AccountUser | null; csrfToken: string };
+export type SavedAddress = {
+  id: string;
+  alias: string;
+  address: string;
+  point: Point;
+};
+export type TransitLine = { line: string; mode: string; name: string };
+export type FavoriteLine = TransitLine & { id: string };
+export type AccountData = { addresses: SavedAddress[]; lines: FavoriteLine[] };

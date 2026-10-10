@@ -5,7 +5,7 @@
 .map-canvas {
   height: 100%;
   width: 100%;
-  background: #dce7df;
+  background: var(--surface-subtle, #dce7df);
 }
 .map-controls {
   position: absolute;
@@ -20,41 +20,41 @@
   height: 44px;
   display: grid;
   place-items: center;
-  background: #fff;
-  border: 1px solid #e3e7df;
+  background: var(--surface, #fff);
+  border: 1px solid var(--border, #e3e7df);
   border-radius: 14px;
-  box-shadow: 0 4px 18px #12332712;
+  box-shadow: 0 4px 18px var(--shadow, #12332712);
 }
 .map-caption {
   position: absolute;
   left: 16px;
   top: 88px;
   z-index: 500;
-  background: #fffffff2;
+  background: var(--map-overlay, #fffffff2);
   padding: 10px 14px;
   border-radius: 30px;
   font-size: 12px;
   display: flex;
   gap: 8px;
   align-items: center;
-  box-shadow: 0 2px 20px #18352b10;
+  box-shadow: 0 2px 20px var(--shadow, #18352b10);
 }
 .map-caption > span:last-child {
-  color: #717970;
+  color: var(--text-muted, #717970);
 }
 .pulse {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #2f8268;
+  background: var(--accent, #2f8268);
 }
 .vehicle-dot {
   background: var(--vehicle-color, #176b4d);
-  border: 3px solid #fff;
+  border: 3px solid var(--border, #fff);
   border-radius: 50%;
   display: grid !important;
   place-items: center;
-  box-shadow: 0 3px 10px #112a3c50;
+  box-shadow: 0 3px 10px var(--shadow, #112a3c50);
   font-size: 19px;
 }
 .vehicle-dot.chosen {
@@ -95,12 +95,12 @@
   z-index: 500;
   display: grid;
   gap: 6px;
-  background: #fffffff2;
+  background: var(--map-overlay, #fffffff2);
   border-radius: 13px;
   padding: 10px 12px;
   max-width: calc(100% - 90px);
   pointer-events: none;
-  box-shadow: 0 2px 18px #18352b10;
+  box-shadow: 0 2px 18px var(--shadow, #18352b10);
 }
 .map-line-legend > div {
   display: flex;

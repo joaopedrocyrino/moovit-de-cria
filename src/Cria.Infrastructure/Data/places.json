@@ -1,17 +1,5 @@
 [
   {
-    "id": "chora-cafe",
-    "name": "Chora Café",
-    "aliases": ["Chora Cafe", "Chora", "Chora Café Botafogo"],
-    "address": "Rua Oliveira Fausto, 28",
-    "neighborhood": "Botafogo",
-    "lat": -22.9566277,
-    "lon": -43.1837086,
-    "enabled": true,
-    "source": "https://www.openstreetmap.org/node/13356439491",
-    "notes": "OpenStreetMap venue coordinates, checked against Photon on 2026-10-08."
-  },
-  {
     "id": "casa-do-amor",
     "name": "Casa do Amor",
     "aliases": [

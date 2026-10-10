@@ -6,10 +6,36 @@ services:
     ports: ["127.0.0.1:${APP_PORT:-5193}:8080"]
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      Security__FrontendOrigin: https://${APP_HOSTNAME:-moovit.joaocyrino.com}
+      Database__Host: database
+      Database__Port: "5432"
+      Database__Password: ${DATABASE_PASSWORD:?Run npm run db:up locally or set DATABASE_PASSWORD on the droplet}
       Transit__Database: /data/transit.sqlite
       Geocoding__AutocompleteUrl: ${AUTOCOMPLETE_URL:-https://photon.komoot.io}
-    volumes: ["./.data:/data:ro"]
+    volumes: ["./.data:/data:ro", "accounts_data:/accounts"]
+    depends_on:
+      database: { condition: service_healthy }
     restart: unless-stopped
+  database:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: moovit
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?Set POSTGRES_ADMIN_PASSWORD}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:?Set DATABASE_PASSWORD}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init.sql:/docker-entrypoint-initdb.d/10-app.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U postgres -d moovit"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    mem_limit: ${DATABASE_MEMORY_LIMIT:-192m}
+    shm_size: 32m
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=40]
+    restart: unless-stopped
+    ports: ["127.0.0.1:${DATABASE_PORT:-5433}:5432"]
   import:
     profiles: [tools]
     image: ${APP_IMAGE:-moovit-de-cria:local}
@@ -20,3 +46,6 @@ services:
     environment:
       GTFS_URL: ${GTFS_URL:-https://dados.mobilidade.rio/gtfs/schedule}
     volumes: ["./.data:/data"]
+volumes:
+  accounts_data:
+  postgres_data:

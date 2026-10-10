@@ -40,8 +40,15 @@ rollback() {
 }
 trap rollback ERR
 printf 'Stage: image-pull.\n'
-compose --profile tools pull app import tunnel
+compose --profile tools pull app import tunnel database
 # Existing snapshots remain intact on an unsuccessful import. Import is a one-off job, not an idle service.
+compose up -d --no-deps --pull never database
+database_ready=false
+for _attempt in $(seq 1 30); do
+ if compose exec -T database pg_isready -h 127.0.0.1 -U postgres -d moovit >/dev/null 2>&1; then database_ready=true; break; fi
+ sleep 2
+done
+[[ "$database_ready" == true ]] || { echo 'PostgreSQL startup failed; inspect database logs.' >&2; false; }
 printf 'Stage: installing GTFS snapshot prepared in GitHub Actions.\n'
 # The install copies/validates SQLite, without retaining the full timetable in
 # JavaScript memory. Manual refresh keeps the server's configured import limit.

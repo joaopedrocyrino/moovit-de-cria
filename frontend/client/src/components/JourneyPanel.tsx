@@ -1,3 +1,4 @@
+import { track } from "../lib/analytics";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -145,6 +146,7 @@ export default function JourneyPanel({
     }
   }
   async function board() {
+    track("journey_step", { step: "board" });
     setBoarded(true);
     onCollapse();
     try {
@@ -157,6 +159,7 @@ export default function JourneyPanel({
     }
   }
   function next() {
+    track("journey_step", { step: "alight" });
     setBoarded(false);
     setIndex(0);
     setAlert(false);

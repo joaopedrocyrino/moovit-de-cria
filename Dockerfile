@@ -31,7 +31,8 @@ ARG GTFS_URL=https://dados.mobilidade.rio/gtfs/schedule
 # GitHub prepares the public timetable; deployment only installs this snapshot.
 # Local builds keep the existing import/host-volume flow.
 RUN if [ "$PREPARE_GTFS" = 1 ]; then node /app/scripts/import-gtfs.mjs --output /app/snapshot/transit.sqlite; fi
-ENV ASPNETCORE_HTTP_PORTS=8080 Transit__Database=/data/transit.sqlite DOTNET_gcServer=0
+RUN mkdir -p /accounts && chown app:app /accounts && chmod 0700 /accounts
+ENV ASPNETCORE_HTTP_PORTS=8080 Transit__Database=/data/transit.sqlite Accounts__Keys=/accounts/keys DOTNET_gcServer=0
 USER app
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "Cria.Web.dll"]

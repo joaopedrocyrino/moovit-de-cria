@@ -3,6 +3,9 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App";
+import "./theme.css";
+import { initializeAnalytics } from "./lib/analytics";
+initializeAnalytics();
 document.title = `${APP_NAME} · Seu corre pelo Rio`;
 const client = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },

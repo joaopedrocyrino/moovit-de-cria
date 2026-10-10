@@ -8,10 +8,20 @@ import {
   LoaderCircle,
   MapPin,
   X,
+  BookmarkPlus,
+  Star,
 } from "lucide-react";
-import type { Place, Point, PlanTiming, TravelTimeMode } from "@cria/shared";
+import type {
+  Place,
+  Point,
+  PlanTiming,
+  TravelTimeMode,
+  SavedAddress,
+} from "@cria/shared";
 import { planTiming, rioDateTime } from "../lib/timing";
+import { track } from "../lib/analytics";
 import { api } from "../api";
+import { addressPlace, savedMatches, searchKey } from "../lib/savedPlaces";
 import "./SearchPanel.css";
 
 type Field = "from" | "to";
@@ -24,6 +34,9 @@ type Props = {
   pending: boolean;
   disabled: boolean;
   locate: () => void;
+  savedAddresses?: SavedAddress[];
+  onSavePlace?: (place: Place) => void;
+  selection?: { key: number; target: Field; place: Place } | null;
 };
 
 export default function SearchPanel({
@@ -35,6 +48,9 @@ export default function SearchPanel({
   locate,
   compact,
   onExpand,
+  savedAddresses = [],
+  onSavePlace,
+  selection,
 }: Props) {
   const expanded = !compact;
   const [timeMode, setTimeMode] = useState<TravelTimeMode>("now");
@@ -46,6 +62,7 @@ export default function SearchPanel({
     if (compact) setField(null);
   }, [compact]);
   const [field, setField] = useState<Field | null>(null);
+  const [savedTarget, setSavedTarget] = useState<Field>("to");
   const [origin, setOrigin] = useState<Place | null>(null);
   const [destination, setDestination] = useState<Place | null>(null);
   const [originText, setOriginText] = useState("");
@@ -73,8 +90,15 @@ export default function SearchPanel({
     field === "from" ? originText : field === "to" ? destinationText : "";
   const selected = field === "from" ? origin : destination;
   const term = text.trim();
+  const matchingSaved = field ? savedMatches(savedAddresses, term) : [];
+  const savedAlias =
+    term.length > 0 &&
+    savedAddresses.some((a) => searchKey(a.alias).startsWith(searchKey(term)));
   const needsSearch =
-    field !== null && term.length >= 3 && text !== selected?.label;
+    field !== null &&
+    term.length >= 3 &&
+    text !== selected?.label &&
+    !savedAlias;
   useEffect(() => {
     setDebounced("");
     setActiveIndex(-1);
@@ -109,7 +133,8 @@ export default function SearchPanel({
     staleTime: 5 * 60 * 1000,
     retry: false,
   });
-  const results = ready ? suggestions.data || [] : [];
+  const publicResults = ready ? suggestions.data || [] : [];
+  const results = [...matchingSaved.map(addressPlace), ...publicResults];
   const searching = needsSearch && (!ready || suggestions.isFetching);
   const searchError =
     ready && suggestions.error ? suggestions.error.message : null;
@@ -122,6 +147,17 @@ export default function SearchPanel({
   }, [activeIndex, field]);
 
   function select(place: Place, target: Field) {
+    track("place_selected", {
+      source: savedAddresses.some(
+        (address) =>
+          address.point.lat === place.point.lat &&
+          address.point.lon === place.point.lon,
+      )
+        ? "saved"
+        : "search",
+      target,
+    });
+    setSavedTarget(target);
     if (target === "from") {
       setUsesGps(false);
       setOrigin(place);
@@ -135,6 +171,7 @@ export default function SearchPanel({
   }
 
   function edit(target: Field, value: string) {
+    setSavedTarget(target);
     onExpand();
     setField(target);
     setActiveIndex(-1);
@@ -149,6 +186,7 @@ export default function SearchPanel({
   }
 
   function useGps() {
+    track("place_selected", { source: "gps", target: "from" });
     setUsesGps(true);
     locate();
     if (location) {
@@ -183,13 +221,20 @@ export default function SearchPanel({
     }
   }
 
+  useEffect(() => {
+    if (selection) select(selection.place, selection.target);
+  }, [selection]);
+
   function endpoint(target: Field) {
     const isOrigin = target === "from";
     const current = isOrigin ? originText : destinationText;
     const open = field === target;
     const showOptions =
       open &&
-      (needsSearch || (current.trim().length > 0 && !selected) || isOrigin);
+      (needsSearch ||
+        results.length > 0 ||
+        (current.trim().length > 0 && !selected) ||
+        isOrigin);
     return (
       <div
         className="endpoint-group"
@@ -232,6 +277,7 @@ export default function SearchPanel({
               onFocus={() => {
                 onExpand();
                 setField(target);
+                setSavedTarget(target);
                 setActiveIndex(-1);
               }}
               onChange={(event) => edit(target, event.target.value)}
@@ -255,6 +301,24 @@ export default function SearchPanel({
               <X size={16} />
             </button>
           )}
+          {onSavePlace &&
+            (isOrigin ? origin : destination) &&
+            (isOrigin ? origin : destination)?.source !== "saved" && (
+              <button
+                type="button"
+                className="icon-button save-address"
+                aria-label={
+                  isOrigin
+                    ? "Salvar origem na conta"
+                    : "Salvar destino na conta"
+                }
+                title="Salvar este lugar"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onSavePlace((isOrigin ? origin : destination)!)}
+              >
+                <BookmarkPlus size={18} />
+              </button>
+            )}
           {isOrigin && (
             <button
               type="button"
@@ -320,10 +384,18 @@ export default function SearchPanel({
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => select(place, target)}
                   >
-                    <MapPin size={17} aria-hidden="true" />
+                    {place.source === "saved" ? (
+                      <Star size={17} aria-hidden="true" />
+                    ) : (
+                      <MapPin size={17} aria-hidden="true" />
+                    )}
                     <span>
                       <strong>{place.label.split(",")[0]}</strong>
                       <small>
+                        {place.source === "saved"
+                          ? savedAddresses.find((a) => a.alias === place.label)
+                              ?.address
+                          : null}
                         {place.label.split(",").slice(1).join(",").trim()}
                         {place.source === "catalog" && " · Catálogo local"}
                       </small>
@@ -342,12 +414,15 @@ export default function SearchPanel({
                   Nenhum lugar encontrado. Tente incluir o bairro ou endereço.
                 </p>
               )}
-            {!needsSearch && !selected && term.length < 3 && (
-              <p className="search-feedback">
-                Digite pelo menos 3 letras do lugar ou endereço.
-              </p>
-            )}
-            {results.length > 0 && (
+            {!needsSearch &&
+              !selected &&
+              term.length < 3 &&
+              !matchingSaved.length && (
+                <p className="search-feedback">
+                  Digite pelo menos 3 letras do lugar ou endereço.
+                </p>
+              )}
+            {publicResults.length > 0 && (
               <div className="search-attribution">
                 <a
                   href="https://www.openstreetmap.org/copyright"
@@ -357,9 +432,9 @@ export default function SearchPanel({
                   © OpenStreetMap
                 </a>{" "}
                 ·{" "}
-                {results.every((p) => p.source === "catalog")
+                {publicResults.every((p) => p.source === "catalog")
                   ? "Catálogo local"
-                  : results.some((p) => p.source === "catalog")
+                  : publicResults.some((p) => p.source === "catalog")
                     ? "Catálogo local + Photon"
                     : "Photon"}
               </div>
@@ -383,6 +458,44 @@ export default function SearchPanel({
         {expanded && endpoint("from")}
         {endpoint("to")}
       </div>
+      {expanded && savedAddresses.length > 0 && (
+        <section className="saved-shortcuts" aria-label="Seus lugares salvos">
+          <div className="saved-shortcuts-label">
+            <span>
+              <Star size={12} /> Seus lugares
+            </span>
+            <div>
+              <button
+                type="button"
+                aria-pressed={savedTarget === "from"}
+                onClick={() => setSavedTarget("from")}
+              >
+                Origem
+              </button>
+              <button
+                type="button"
+                aria-pressed={savedTarget === "to"}
+                onClick={() => setSavedTarget("to")}
+              >
+                Destino
+              </button>
+            </div>
+          </div>
+          <div className="saved-shortcuts-list">
+            {savedAddresses.map((address) => (
+              <button
+                type="button"
+                key={address.id}
+                aria-label={`Usar ${address.alias} como ${savedTarget === "from" ? "origem" : "destino"}`}
+                onClick={() => select(addressPlace(address), savedTarget)}
+              >
+                <MapPin size={13} />
+                {address.alias}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
       {expanded && (
         <div className="route-options">
           <label className="payment-label">

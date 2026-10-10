@@ -1,0 +1,55 @@
+:root {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --text: #e1eadf;
+  --text-muted: #b3c1af;
+  --text-heading: #e5efdf;
+  --accent-text: #bcd982;
+  --accent: #93bf76;
+  --surface: #1a2821;
+  --surface-panel: #17231d;
+  --surface-muted: #202e25;
+  --surface-subtle: #26382b;
+  --surface-accent: #314629;
+  --surface-success: #284130;
+  --text-success: #b5dfaa;
+  --surface-warning: #3d3321;
+  --text-warning: #efd194;
+  --surface-error: #3d2825;
+  --text-error: #efb29e;
+  --border-error: #785046;
+  --border: #394a3b;
+  --focus: #bcd982;
+  --primary: #bcd982;
+  --primary-hover: #cde899;
+  --primary-text: #1a2b1d;
+  --map-background: #111b16;
+  --map-overlay: #17231df2;
+  --header-start: #17231df5;
+  --header-end: #17231deb;
+  --backdrop: #050d0aa6;
+  --shadow: #00000050;
+}
+:root[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(0.82) saturate(0.65)
+    contrast(0.95);
+}
+.leaflet-container {
+  background: var(--map-background, #dce7df);
+}
+.leaflet-control-attribution,
+.leaflet-tooltip {
+  background: var(--map-overlay, #fffffff2) !important;
+  color: var(--text-muted, #717970) !important;
+}
+.leaflet-control-attribution a {
+  color: var(--accent-text, #316647);
+}
+:root[data-theme="dark"] .leaflet-tooltip {
+  border-color: var(--border);
+}
+:root[data-theme="dark"] .leaflet-tooltip-top::before {
+  border-top-color: var(--border);
+}

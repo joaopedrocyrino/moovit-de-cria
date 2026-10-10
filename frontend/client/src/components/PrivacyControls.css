@@ -1,0 +1,51 @@
+.privacy-link {
+  border: 1px solid var(--border, #dfe7d7);
+  background: var(--surface, #fff);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 10px;
+}
+.privacy-panel {
+  position: absolute;
+  z-index: 850;
+  right: 12px;
+  bottom: 52px;
+  width: min(410px, calc(100% - 24px));
+  max-height: calc(100dvh - 160px);
+  overflow-y: auto;
+  border: 1px solid var(--border, #dfe7d7);
+  border-radius: 18px;
+  background: var(--surface-panel, #fafbf7);
+  box-shadow: 0 8px 35px var(--shadow, #24442c30);
+  padding: 20px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.privacy-panel h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.privacy-panel p,
+.privacy-panel small {
+  color: var(--text-muted, #62765a);
+}
+.privacy-actions {
+  display: flex;
+  gap: 8px;
+  margin: 14px 0 8px;
+}
+.privacy-actions button {
+  flex: 1;
+  border: 1px solid var(--border, #c4d1b7);
+  border-radius: 10px;
+  background: var(--surface-accent, #edf6cc);
+  padding: 10px;
+  font-weight: 600;
+  font-size: 12px;
+}
+@media (max-width: 650px) {
+  .privacy-panel {
+    top: 124px;
+    bottom: auto;
+  }
+}

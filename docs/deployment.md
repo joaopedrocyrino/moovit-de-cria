@@ -11,6 +11,7 @@ flowchart LR
   Edge --> Tunnel[cloudflared on droplet]
   Tunnel --> API[private .NET API:8080]
   API --> Data[read-only transit snapshot]
+  API --> Accounts[private writable account volume + cookie keys]
   API --> Providers[public transit / geocoding providers]
 ```
 
@@ -18,7 +19,7 @@ flowchart LR
 - The API and connector share an **internal** Docker `origin` network. Each has separate Internet egress; the API still needs outbound provider requests.
 - The API checks its actual TCP peer against the connector's private IP **before** processing forwarded headers. It rejects other peers and missing/invalid `CF-Connecting-IP` or non-HTTPS forwarded requests.
 - The client IP used for rate limiting comes only from `CF-Connecting-IP` received through that trusted connector. Arbitrary `X-Forwarded-For` does not grant access or change the rate-limit bucket.
-- CORS permits only `https://moovit.joaocyrino.com`. CORS controls browser access; the public API remains callable through Cloudflare without user authentication.
+- Credentialed CORS permits only `https://moovit.joaocyrino.com`. Public planning/provider endpoints remain callable without sign-in; account endpoints require a valid session, owner checks and CSRF tokens for writes.
 - Only GET `/api/health/live` and `/api/health/ready` allow container-local loopback probes. Other loopback requests are rejected in production.
 - The tunnel token stays in the droplet `.env`. GitHub gets a separate **Pages deployment** token and the existing SSH/GHCR credentials. Neither token enters the React bundle.
 - Tunnel connectivity is outbound; it needs TCP/UDP port 7844 egress. The droplet's existing SSH access and other apps' inbound ports stay unchanged. A host administrator with Docker access can change the configuration; this does not isolate the app from root.
@@ -27,10 +28,10 @@ flowchart LR
 
 Cloudflare DNS for `joaocyrino.com` is already active. Create two **Direct Upload** Pages projects with production branch `main`:
 
-| App | Pages project | Custom domain |
-| --- | --- | --- |
-| Client | `moovit-de-cria` | `moovit.joaocyrino.com` |
-| Admin | `moovit-de-cria-admin` | `moovit-admin.joaocyrino.com` |
+| App    | Pages project          | Custom domain                 |
+| ------ | ---------------------- | ----------------------------- |
+| Client | `moovit-de-cria`       | `moovit.joaocyrino.com`       |
+| Admin  | `moovit-de-cria-admin` | `moovit-admin.joaocyrino.com` |
 
 Keep the existing client Pages project if already configured. GitHub Actions controls
 publishing. Both projects must exist before pushing; deployment preflight checks them
@@ -56,11 +57,11 @@ In the Cloudflare dashboard, open **Networking â†’ Tunnels** (or **Zero Trust â†
 
 Add its **Published application** route:
 
-| Setting | Value |
-| --- | --- |
-| Public hostname | `moovit-api.joaocyrino.com` |
-| Service type | HTTP |
-| Service URL | `app:8080` (equivalent to `http://app:8080`) |
+| Setting         | Value                                        |
+| --------------- | -------------------------------------------- |
+| Public hostname | `moovit-api.joaocyrino.com`                  |
+| Service type    | HTTP                                         |
+| Service URL     | `app:8080` (equivalent to `http://app:8080`) |
 
 Cloudflare creates the proxied tunnel DNS record. Do not point this hostname at the droplet IP or attach it to Caddy. Keep the HTTP Host header unchanged, so the API receives `moovit-api.joaocyrino.com`. Enable **Always Use HTTPS** for this hostname/zone. Keep **Pseudo IPv4** disabled or in Add Header mode, preserving the real `CF-Connecting-IP`.
 
@@ -97,27 +98,27 @@ The connector is one additional small service with a 128 MiB memory cap, not a r
 
 Use the **production** GitHub environment. Keep the existing deployment secrets:
 
-| Secret | Value |
-| --- | --- |
-| `DEPLOY_HOST` | Droplet IPv4/SSH hostname |
-| `DEPLOY_USER` | Existing Docker-capable deploy user |
-| `DEPLOY_SSH_KEY` | Existing authorized private deployment key |
-| `DEPLOY_SSH_KNOWN_HOSTS` | Verified server host-key line |
-| `GHCR_USERNAME` | Account with read access to the image package |
-| `GHCR_TOKEN` | Token with `read:packages` for the droplet pull |
+| Secret                   | Value                                           |
+| ------------------------ | ----------------------------------------------- |
+| `DEPLOY_HOST`            | Droplet IPv4/SSH hostname                       |
+| `DEPLOY_USER`            | Existing Docker-capable deploy user             |
+| `DEPLOY_SSH_KEY`         | Existing authorized private deployment key      |
+| `DEPLOY_SSH_KNOWN_HOSTS` | Verified server host-key line                   |
+| `GHCR_USERNAME`          | Account with read access to the image package   |
+| `GHCR_TOKEN`             | Token with `read:packages` for the droplet pull |
 
 Add these **production secrets**:
 
-| Secret | Value |
-| --- | --- |
-| `CLOUDFLARE_API_TOKEN` | Pages Edit API token from step 1 |
-| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID |
+| Secret                  | Value                            |
+| ----------------------- | -------------------------------- |
+| `CLOUDFLARE_API_TOKEN`  | Pages Edit API token from step 1 |
+| `CLOUDFLARE_ACCOUNT_ID` | Your Cloudflare account ID       |
 
 Production Pages variables (both have these defaults):
 
-| Variable | Default |
-| --- | --- |
-| `CLOUDFLARE_PAGES_PROJECT` | `moovit-de-cria` |
+| Variable                         | Default                |
+| -------------------------------- | ---------------------- |
+| `CLOUDFLARE_PAGES_PROJECT`       | `moovit-de-cria`       |
 | `CLOUDFLARE_ADMIN_PAGES_PROJECT` | `moovit-de-cria-admin` |
 
 The existing Pages Edit token and Account ID can deploy both projects in that account;
@@ -125,12 +126,12 @@ no additional tunnel or droplet service is needed for the admin.
 
 Public hostname overrides must be **repository variables**, so the tested artifact and API use the same addresses:
 
-| Repository variable | Default |
-| --- | --- |
-| `APP_HOSTNAME` | `moovit.joaocyrino.com` |
-| `API_HOSTNAME` | `moovit-api.joaocyrino.com` |
-| `ADMIN_HOSTNAME` | `moovit-admin.joaocyrino.com` |
-| `GTFS_URL` | `https://dados.mobilidade.rio/gtfs/schedule` |
+| Repository variable | Default                                      |
+| ------------------- | -------------------------------------------- |
+| `APP_HOSTNAME`      | `moovit.joaocyrino.com`                      |
+| `API_HOSTNAME`      | `moovit-api.joaocyrino.com`                  |
+| `ADMIN_HOSTNAME`    | `moovit-admin.joaocyrino.com`                |
+| `GTFS_URL`          | `https://dados.mobilidade.rio/gtfs/schedule` |
 
 `DEPLOY_PATH` defaults to `/opt/moovit-de-cria` and `DEPLOY_PORT` to `22`; those can be production variables. The old `CADDY_CONTAINER` variable is no longer used by this app. Never put the tunnel token in GitHub or a `VITE_` variable.
 
@@ -188,6 +189,12 @@ Do not paste `.env` or full `docker inspect`/`compose config` output: the connec
 ## Local development
 
 `npm run dev` starts .NET (5193), client (4193) and admin (4194). Client uses Vite's `/api` proxy; admin is independent. Local `docker compose up --build` still serves only client + API from the combined container; run `npm run dev:admin` separately for admin. No Cloudflare credentials are required locally. `VITE_API_ORIGIN` defaults to unset; production sets it at build time to `https://moovit-api.joaocyrino.com`. The service worker caches the local app shell/assets only, never cross-origin API/GPS responses or external map tiles.
+
+## Account persistence
+
+The API uses PostgreSQL 17 on a private Docker network, without a public database port. `postgres_data` persists accounts and analytics; `accounts_data:/accounts` persists cookie keys. The API filesystem stays read-only. Before the first deployment, set `DATABASE_PASSWORD` and `POSTGRES_ADMIN_PASSWORD` in the droplet `.env`, using two distinct `openssl rand -hex 32` values. No new GitHub secret is required. Deployments start the database automatically and initialize the application schema transactionally. Database memory defaults to 192 MiB; retain host headroom. All data/key volumes survive deployments and GTFS refreshes. Do not use `docker compose down -v` on a server with users. [Account storage, backup and recovery](accounts.md).
+
+Client/API custom domains must share the same HTTPS site for the host-only `SameSite=Lax` cookies (the default `*.joaocyrino.com` hosts do). The `pages.dev` preview domain is not an authenticated production client. No cookie secret or user credential belongs in a Pages build. Account migrations are versioned and initialize automatically; an image rejects newer unsupported schemas rather than overwriting user data.
 
 ## References
 

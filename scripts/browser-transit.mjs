@@ -1,4 +1,4 @@
-import { connectTestApi } from "./browser-api.mjs";
+import { connectTestSite } from "./browser-api.mjs";
 import { chromium, webkit } from "@playwright/test";
 import assert from "node:assert/strict";
 // Deterministic UI-only fixtures; backend routing/GPS filtering have separate .NET tests.
@@ -84,7 +84,7 @@ for (const [name, engine] of engines) {
       },
     });
     const page = await context.newPage();
-    await connectTestApi(page);
+    const site = await connectTestSite(page);
     const errors = [];
     const requests = [];
     const planRequests = [];
@@ -152,7 +152,9 @@ for (const [name, engine] of engines) {
         },
       });
     });
-    await page.goto(process.env.BASE_URL || "http://127.0.0.1:5193");
+    await page.goto(site);
+    await page.getByRole("button", { name: "Recusar análises" }).click();
+    await page.locator(".privacy-panel").waitFor({ state: "hidden" });
     const destination = page.getByRole("combobox", { name: "Buscar destino" });
     await destination.waitFor();
     assert.equal(
